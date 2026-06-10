@@ -1,6 +1,6 @@
 {
   "name": "@useathos/sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Headless browser SDK for running Athos AI roleplay calls. Hides the voice transport entirely.",
   "private": false,
   "license": "MIT",
