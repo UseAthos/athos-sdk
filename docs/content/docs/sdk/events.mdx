@@ -1,0 +1,57 @@
+---
+title: Events
+description: The roleplay session lifecycle events and their payloads.
+---
+
+Subscribe with `session.on(name, cb)`. It returns an **unsubscribe function** — call it (or
+`session.off`) when your component unmounts to avoid leaks in single-page apps.
+
+```ts
+const off = session.on('personaSpeaking', ({ speaking }) => setAvatarTalking(speaking));
+// later:
+off();
+```
+
+## Event reference
+
+| Event | Payload | Fires when |
+| --- | --- | --- |
+| `connecting` | — | `connect()` was called; the token is being redeemed and the call joined. |
+| `ready` | `{ persona: { name: string } }` | The persona is connected and ready to speak. |
+| `personaSpeaking` | `{ speaking: boolean }` | The AI persona started (`true`) or stopped (`false`) speaking. |
+| `userSpeaking` | `{ speaking: boolean }` | The local rep started (`true`) or stopped (`false`) speaking. |
+| `reconnecting` | — | A transient network drop is being recovered automatically. |
+| `reconnected` | — | The connection recovered after a transient drop. |
+| `ended` | `{ callId: string; durationSec: number }` | The call ended. `callId` is the public `athos_call_…` id. |
+| `error` | `{ code: string; message: string }` | A domain error. Branch on `code` — see [Error codes](/sdk/errors). |
+
+<Callout type="info">
+  There is **no live transcript event**. The diarized transcript is delivered post-call via
+  [`GET /v1/calls/:id`](/backend/reading-calls), not streamed during the call.
+</Callout>
+
+## Typical wiring
+
+```ts
+const session = AthosRoleplay.create({ token, drillKey: 'ma-full-sale' });
+
+session.on('connecting', () => showSpinner());
+session.on('ready', ({ persona }) => showCallUI(persona.name));
+session.on('personaSpeaking', ({ speaking }) => setPersonaTalking(speaking));
+session.on('userSpeaking', ({ speaking }) => setMicActive(speaking));
+session.on('reconnecting', () => showBanner('Reconnecting…'));
+session.on('reconnected', () => hideBanner());
+session.on('ended', ({ callId, durationSec }) => {
+  showSummary(durationSec);
+  // `callId` is what your backend uses to look up the score once the webhook arrives.
+});
+session.on('error', ({ code, message }) => handleError(code, message));
+
+await session.connect();
+```
+
+## Using the `callId`
+
+The `ended` event gives you the public `callId`. Scoring happens **after** the call ends, so the
+score is not available immediately — wait for the [`call.scored` webhook](/backend/webhooks)
+(or poll [`GET /v1/calls`](/backend/reading-calls)) and look the call up by that same `callId`.

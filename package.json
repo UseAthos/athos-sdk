@@ -1,0 +1,58 @@
+{
+  "name": "@useathos/sdk",
+  "version": "0.2.0",
+  "description": "Headless browser SDK for running Athos AI roleplay calls. Hides the voice transport entirely.",
+  "private": false,
+  "license": "MIT",
+  "author": "Athos (https://useathos.ai)",
+  "homepage": "https://docs.useathos.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UseAthos/athos-sdk.git"
+  },
+  "bugs": "https://github.com/UseAthos/athos-sdk/issues",
+  "keywords": [
+    "athos",
+    "roleplay",
+    "ai",
+    "voice",
+    "sales-training",
+    "sdk"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "example": "vite example",
+    "prepublishOnly": "tsup"
+  },
+  "dependencies": {
+    "livekit-client": "^2.19.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

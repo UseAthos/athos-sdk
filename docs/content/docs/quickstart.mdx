@@ -1,0 +1,166 @@
+---
+title: Quickstart
+description: From zero to a live, scored roleplay call in about 15 minutes.
+---
+
+This walks through the entire loop: mint a token, start a live call from the browser, receive the
+`call.scored` webhook, and read the score. Every REST call is server-to-server — keep your API key
+on your backend.
+
+<Callout type="info">
+  **Base URL:** `https://app.useathos.ai/api/external/v1`. You'll get an API key from your Athos
+  contact — see [Authentication](/authentication).
+</Callout>
+
+<Steps>
+
+<Step>
+
+### Get your credentials
+
+There's no self-serve signup — setup is a quick coordination with the Athos team. You give us one
+thing, and we send you two:
+
+**You provide:** your **HTTPS webhook URL** (where events should be delivered).
+
+**Athos sends you** (each shown once — store both as backend secrets):
+
+- an **API key** (`ath_live_…`) → `ATHOS_API_KEY`
+- a **webhook signing secret** (`whsec_…`) → `ATHOS_WHSEC`
+
+We register your webhook URL on our side and start delivering events to it. Keep both
+secrets server-side — the API key never goes near a browser.
+
+</Step>
+
+<Step>
+
+### Install the SDK
+
+```bash
+npm install @useathos/sdk
+```
+
+</Step>
+
+<Step>
+
+### Mint a session token (backend)
+
+Your backend exchanges its API key for a short-lived, single-use **session token** scoped to one
+rep. Expose this as your own endpoint (e.g. `POST /athos/token`) that your frontend can call.
+
+<Tabs items={['curl', 'Node', 'Python']}>
+<Tab value="curl">
+```bash
+curl -X POST https://app.useathos.ai/api/external/v1/session \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"externalUserId":"rep_8842","externalAgencyId":"agency_chicago"}'
+# → { "token": "eyJhbGci…", "expiresAt": "2026-06-05T18:05:00.000Z" }
+```
+</Tab>
+<Tab value="Node">
+```ts
+// POST /athos/token  (your endpoint)
+app.post('/athos/token', async (req, res) => {
+  const r = await fetch('https://app.useathos.ai/api/external/v1/session', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.ATHOS_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ externalUserId: req.user.id, externalAgencyId: req.user.agencyId }),
+  });
+  if (!r.ok) return res.status(502).json(await r.json());
+  res.json(await r.json()); // { token, expiresAt }
+});
+```
+</Tab>
+<Tab value="Python">
+```python
+# POST /athos/token  (your endpoint)
+import os, requests
+
+@app.post("/athos/token")
+def athos_token():
+    r = requests.post(
+        "https://app.useathos.ai/api/external/v1/session",
+        headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
+        json={"externalUserId": current_user.id, "externalAgencyId": current_user.agency_id},
+        timeout=10,
+    )
+    return r.json(), r.status_code   # { "token": ..., "expiresAt": ... }
+```
+</Tab>
+</Tabs>
+
+<Callout type="warn">
+  Mint the token **at the moment the rep clicks "start practice"**, not on page load. It's
+  single-use and lives ~5 minutes.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Start the call (frontend)
+
+`create()` is synchronous, so register handlers **before** `connect()` — nothing is missed.
+
+```ts
+import { AthosRoleplay } from '@useathos/sdk';
+
+const { token } = await fetch('/athos/token', { method: 'POST' }).then((r) => r.json());
+
+const session = AthosRoleplay.create({ token, drillKey: 'ma-full-sale' });
+
+session.on('ready', ({ persona }) => console.log(`${persona.name} is ready`));
+session.on('ended', ({ callId, durationSec }) => console.log('ended', callId, durationSec));
+session.on('error', ({ code, message }) => console.error(code, message));
+
+await session.connect(); // joins the call; the AI persona starts speaking
+```
+
+That's the whole frontend. See the [SDK guide](/sdk) for events, microphone control, and
+browser detection.
+
+</Step>
+
+<Step>
+
+### Receive the event webhook (backend)
+
+When the call finishes scoring, Athos POSTs a small, signed payload to your registered URL. Verify
+the signature over the **raw request body**, then fetch the detail.
+
+
+See [Webhooks](/backend/webhooks) for the full payload, retries, and a Python verifier.
+
+</Step>
+
+<Step>
+
+### Read the score (backend)
+
+```bash
+curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ8mp \
+  -H "Authorization: Bearer $ATHOS_API_KEY"
+```
+
+The response includes the diarized `transcript` and the `score` object (`overallScore`, `summary`,
+and `feedback`). See [Reading calls](/backend/reading-calls).
+
+</Step>
+
+</Steps>
+
+## You're done
+
+You've run the full loop. Next:
+
+<Cards>
+  <Card title="Authentication" href="/authentication">
+    Key rotation, the session-token lifecycle, and the support flow.
+  </Card>
+</Cards>

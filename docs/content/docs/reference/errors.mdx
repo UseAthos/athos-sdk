@@ -1,0 +1,47 @@
+---
+title: Error codes
+description: The REST error envelope and the full code-to-status table.
+---
+
+Every error from the REST API uses one envelope. Branch on `code`; `message` is human-readable and may
+change.
+
+```json
+{
+  "error": {
+    "code": "CALL_NOT_FOUND",
+    "message": "Call not found",
+    "requestId": "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+  }
+}
+```
+
+The `requestId` matches the `X-Athos-Request-Id` response header — quote it in support tickets.
+
+## Codes
+
+| `code` | HTTP | Meaning |
+| --- | --- | --- |
+| `INVALID_REQUEST` | 400 | The request body or query was invalid (validation, bad cursor). |
+| `DRILL_NOT_FOUND` | 400 | The `drillKey` doesn't match a known drill. |
+| `INVALID_API_KEY` | 401 | Missing or invalid API key. |
+| `API_KEY_REVOKED` | 401 | The API key was revoked. |
+| `INVALID_TOKEN` | 401 | The session token was malformed or rejected. |
+| `TOKEN_EXPIRED` | 401 | The session token expired before it was redeemed. |
+| `TOKEN_ALREADY_USED` | 401 | The single-use session token was already redeemed. |
+| `IP_NOT_ALLOWED` | 403 | The caller's IP is not on the allowlist (if one is configured). |
+| `TENANT_INACTIVE` | 403 | Your tenant is inactive. |
+| `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant exceeded its usage quota. |
+| `CALL_NOT_FOUND` | 404 | No such call for your tenant (also returned for another tenant's call). |
+| `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable; retry. |
+| `INTERNAL_ERROR` | 500 | An unexpected error. Retry; if it persists, contact Athos with the `requestId`. |
+
+## Which codes you'll see where
+
+- **`POST /session`** (mint): `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
+  `IP_NOT_ALLOWED`.
+- **`POST /roleplay/session`** (SDK redeem): `INVALID_REQUEST`, `DRILL_NOT_FOUND`, `INVALID_TOKEN`,
+  `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`. These surface through the SDK's
+  [`error` event](/sdk/errors).
+- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST`, `INVALID_API_KEY`,
+  `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).

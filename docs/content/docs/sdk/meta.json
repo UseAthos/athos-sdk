@@ -1,0 +1,5 @@
+{
+  "title": "Frontend SDK",
+  "defaultOpen": true,
+  "pages": ["index", "events", "microphone-and-audio", "browser-support", "errors"]
+}

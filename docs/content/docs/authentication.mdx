@@ -1,0 +1,100 @@
+---
+title: Authentication
+description: API keys, session tokens, rotation, and the support flow.
+---
+
+The External API has two credentials. Using the right one for the right caller is the whole security
+model.
+
+## API keys (your backend)
+
+A reseller API key looks like `ath_live_…`. It authenticates every **server-to-server** call —
+minting sessions and reading calls — as a bearer token:
+
+```http
+Authorization: Bearer ath_live_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+- **You receive it from Athos**, shown **once** at creation. Store it as a backend secret
+  (`ATHOS_API_KEY`). It is never retrievable again — if you lose it, rotate.
+- It is the **tenant boundary**: it scopes every read to your data.
+- **Never expose it to a browser.** The three API-key endpoints reject cross-origin requests
+  (see [CORS](#cors)).
+
+<Callout type="warn">
+  Treat the key like a password. Anyone holding it can mint sessions and read every call in your
+  tenant. If it leaks, revoke it immediately (rotation below).
+</Callout>
+
+### Rotation
+
+You make sure to support a simple zero-downtime rotation using multiple keys:
+
+<Steps>
+<Step>Ask Athos to **mint a new key**. Deploy it to your backend.</Step>
+<Step>Confirm traffic is flowing on the new key.</Step>
+<Step>Ask Athos to **revoke the old key**.</Step>
+</Steps>
+
+A revoked key immediately returns `401 API_KEY_REVOKED`.
+
+## Session tokens (the browser SDK)
+
+A session token is a short-lived JWT your backend mints with `POST /v1/session`. It authenticates
+exactly **one** action: the SDK redeeming a live roleplay call.
+
+- **Lifetime:** ~5 minutes. Mint it when the rep clicks "start", not on page load.
+- **Single-use:** it is consumed the moment the SDK connects. A second redemption returns
+  `401 TOKEN_ALREADY_USED`.
+- **Scope:** it carries the `externalUserId` (and optional `externalAgencyId`) you minted it with.
+  It cannot read calls, usage, or anything else — only start a session.
+
+Because it's short-lived and single-use, there's no refresh flow and nothing to revoke. See
+[minting tokens](/backend/minting-tokens) for the request shape.
+
+```text
+  API key  ──▶  POST /v1/session  ──▶  session token (JWT, ~5 min, single-use)
+   (backend, secret)                     (browser, scoped to one rep, one call)
+```
+
+## CORS
+
+Only the SDK's redeem endpoint accepts cross-origin browser requests; everything else is
+server-to-server.
+
+| Endpoint | Caller | CORS |
+| --- | --- | --- |
+| `POST /v1/session` | your backend | ❌ rejected |
+| `POST /v1/roleplay/session` | the SDK (browser) | ✅ allowed |
+| `GET /v1/calls` | your backend | ❌ rejected |
+| `GET /v1/calls/:id` | your backend | ❌ rejected |
+
+If you try to call a backend endpoint from a browser, it will fail CORS — that's intentional. Put
+those calls behind your own backend.
+
+## The support flow
+
+Every API response carries an `X-Athos-Request-Id` header (e.g. `req_2f8c1e94-…`). Every webhook
+delivery carries a `requestId` in its body. When something looks wrong:
+
+1. Grab the `X-Athos-Request-Id` (API) or the webhook `requestId`.
+2. Send it to your Athos contact.
+
+We can trace the exact request from that id. It's the fastest path to a resolution — always include
+it.
+
+## Error responses
+
+Authentication failures use the standard error envelope:
+
+```json
+{
+  "error": {
+    "code": "INVALID_API_KEY",
+    "message": "Invalid API key",
+    "requestId": "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+  }
+}
+```
+
+Branch on `code`, never on `message`. The full list is in the [error reference](/reference/errors).

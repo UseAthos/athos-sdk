@@ -1,0 +1,168 @@
+---
+title: Webhooks
+description: Receive and verify the signed call.scored webhook.
+---
+
+When a call finishes scoring, Athos POSTs a small, signed `call.scored` event to your registered URL.
+Your handler verifies the signature, ACKs fast, and then fetches the full score.
+
+## Registering your endpoint
+
+Give your Athos contact an **HTTPS** URL and we'll register it — there's no setup probe to respond
+to. You'll receive a **signing secret** (`whsec_…`), shown once; store it as a backend secret
+(`ATHOS_WHSEC`). Once it's registered, `call.scored` events start flowing to that URL.
+
+<Callout type="info">
+  We trust the URL you give us, so double-check it. If a delivery later fails — your endpoint is
+  down, returns a non-2xx, or the URL is wrong — it's recorded in our delivery logs and we'll reach
+  out. (Non-HTTPS URLs are rejected, and redirects on delivery are not followed.)
+</Callout>
+
+## The request
+
+```http
+POST https://your-app.example.com/athos/webhook
+Content-Type: application/json
+X-Athos-Signature: t=1749139254,v1=3a8f1c…e92
+X-Athos-Webhook-Id: wh_2c7e9a04-…
+```
+
+**Body** — deliberately thin. It tells you *which* call changed; you fetch the details yourself.
+
+```json
+{
+  "event": "call.scored",
+  "success": true,
+  "callId": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
+  "source": "roleplay",
+  "externalUserId": "rep_8842",
+  "externalAgencyId": "agency_chicago",
+  "occurredAt": "2026-06-05T18:09:14.000Z",
+  "requestId": "req_b1f0…"
+}
+```
+
+| Field | Notes |
+| --- | --- |
+| `event` | Always `"call.scored"` in v1. |
+| `success` | `true` when the call scored. `false` if scoring failed (see below). |
+| `callId` | Public `athos_call_…` id. Look the call up with this. |
+| `source` | Always `"roleplay"` in v1 (more sources coming soon). |
+| `externalUserId` / `externalAgencyId` | The rep / agency you minted the session with. `externalAgencyId` may be `null`. |
+| `occurredAt` | ISO 8601 timestamp of the event. |
+| `requestId` | A delivery support id — quote it to Athos if a delivery looks wrong. |
+
+On `success: false`, two extra fields appear — `reason` and `reasonMessage` — describing why scoring
+failed. There is no `score` to fetch in that case.
+
+<Callout type="info">
+  The body never contains a `score` or transcript (PHI stays out of webhook channels) and never
+  contains your internal routing ids. Fetch the score with
+  [`GET /v1/calls/:id`](/backend/reading-calls).
+</Callout>
+
+## Verifying the signature
+
+The signature header is `t=<unix-seconds>,v1=<hex>` where:
+
+```
+v1 = HMAC_SHA256( your whsec_ secret , "<t>.<raw request body>" )
+```
+
+Three rules that matter:
+
+1. **Verify over the raw body bytes** — exactly what was sent, before any JSON parse/re-serialize.
+   If you parse first and re-stringify, the bytes change and the signature won't match.
+2. **Reject stale timestamps** — if `t` is more than **5 minutes** from now, reject it (replay
+   protection).
+3. **Compare in constant time.**
+
+<Tabs items={['Node', 'Python']}>
+<Tab value="Node">
+```ts
+import crypto from 'node:crypto';
+import express from 'express';
+
+function verifyAthosSignature(rawBody: string, header: string | undefined, secret: string): boolean {
+  if (!header) return false;
+  const parts = Object.fromEntries(header.split(',').map((kv) => kv.split('=')));
+  const { t, v1 } = parts;
+  if (!t || !v1) return false;
+  if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // 5-min replay window
+  const expected = crypto.createHmac('sha256', secret).update(`${t}.${rawBody}`).digest('hex');
+  return v1.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(v1, 'hex'), Buffer.from(expected, 'hex'));
+}
+
+// Mount with a RAW body parser so the bytes are untouched.
+app.post('/athos/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const raw = req.body.toString('utf8');
+  if (!verifyAthosSignature(raw, req.header('X-Athos-Signature'), process.env.ATHOS_WHSEC!)) {
+    return res.sendStatus(401);
+  }
+
+  res.sendStatus(200); // ACK fast — do the work afterwards
+
+  const evt = JSON.parse(raw);
+  if (!alreadyProcessed(req.header('X-Athos-Webhook-Id'))) {
+    if (evt.success) void fetchAndStoreScore(evt.callId);
+    else logScoringFailure(evt.callId, evt.reason, evt.reasonMessage);
+  }
+});
+```
+</Tab>
+<Tab value="Python">
+```python
+import hmac, hashlib, time, os
+from flask import Flask, request
+
+def verify_athos_signature(raw_body: bytes, header: str, secret: str) -> bool:
+    if not header:
+        return False
+    parts = dict(p.split("=", 1) for p in header.split(","))
+    t, v1 = parts.get("t"), parts.get("v1")
+    if not t or not v1:
+        return False
+    if abs(time.time() - int(t)) > 300:           # 5-min replay window
+        return False
+    expected = hmac.new(secret.encode(), f"{t}.".encode() + raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, v1)
+
+@app.post("/athos/webhook")
+def athos_webhook():
+    raw = request.get_data()                       # RAW bytes — do not use request.json first
+    if not verify_athos_signature(raw, request.headers.get("X-Athos-Signature", ""), os.environ["ATHOS_WHSEC"]):
+        return "", 401
+
+    evt = request.get_json()
+    if not already_processed(request.headers.get("X-Athos-Webhook-Id")):
+        if evt["success"]:
+            enqueue_fetch_score(evt["callId"])     # do heavy work async
+        else:
+            log_scoring_failure(evt["callId"], evt.get("reason"), evt.get("reasonMessage"))
+    return "", 200                                 # ACK fast
+```
+</Tab>
+</Tabs>
+
+## Responding, retries, and idempotency
+
+- **Respond `2xx` quickly.** Any non-2xx (or a timeout) is treated as a failed delivery. ACK first,
+  then do the work asynchronously.
+- **Retries are minimal.** If the first attempt fails, Athos retries **once after ~5 minutes**, then
+  stops. There is no long exponential tail.
+- **Deduplicate on `X-Athos-Webhook-Id`.** It's stable across the retry, so the same event can arrive
+  twice with the same id. Treat that id as your idempotency key.
+- **Polling is the backstop.** If both delivery attempts fail, the event won't be redelivered later —
+  reconcile by polling [`GET /v1/calls`](/backend/reading-calls) on a schedule (e.g. every few
+  minutes for recently-ended calls).
+
+## A note on frameworks
+
+The one thing to get right everywhere is **raw body access**:
+
+- **Express:** `express.raw({ type: 'application/json' })` on the webhook route only.
+- **Next.js (App Router):** read `await req.text()` in the route handler and verify that string.
+- **Flask/FastAPI:** use `request.get_data()` / the raw `Request` body, not the parsed JSON.
+
+If signatures never match, a re-serialized body is almost always the cause.

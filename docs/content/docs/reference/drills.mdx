@@ -1,0 +1,69 @@
+---
+title: Drills
+description: The roleplay scenarios, difficulty levels, and persona filters.
+---
+
+A **drill** is the scenario your rep practices. You pass its key as `drillKey` to
+`AthosRoleplay.create({ drillKey })`. An unknown key returns `DRILL_NOT_FOUND`.
+
+## Available drills
+
+| `drillKey` | Scenario |
+| --- | --- |
+| `ma-full-sale` | **Medicare Advantage — full enrollment.** Practice a complete MA sale, intro to close. |
+
+<Callout type="info">
+  **More drills coming soon** — Final Expense, Hospital Indemnity, ACA/Under-65, objection handling,
+  and SEP hunting are on the way. The catalog is **append-only** (keys are never renamed or removed),
+  and newly added keys work without an SDK upgrade.
+</Callout>
+
+### Typed keys in the SDK (opt-in)
+
+`drillKey` accepts any `string`, so newly added drills work without an SDK upgrade. For editor
+autocomplete and compile-time checking, the SDK exports the known catalog — use it where your
+keys are static, or render a scenario picker from the runtime list:
+
+```ts
+import { ATHOS_DRILL_KEYS, type AthosDrillKey } from '@useathos/sdk';
+
+ATHOS_DRILL_KEYS.forEach((key) => addOption(key)); // runtime list
+const drillKey: AthosDrillKey = 'ma-full-sale';    // opt-in compile-time check
+```
+
+## Difficulty
+
+Pass `difficulty` to set how challenging the persona is:
+
+| Value | Behavior |
+| --- | --- |
+| `Beginner` | More cooperative persona, simpler objections. |
+| `Advanced` | Standard difficulty. **Default** when `difficulty` is omitted. |
+| `Elite` | Tougher persona, harder objections. |
+
+```ts
+AthosRoleplay.create({ token, drillKey: 'ma-full-sale', difficulty: 'Elite' });
+```
+
+## Persona filters
+
+`filters` narrows which persona is chosen. It is **best-effort** — if no persona matches, Athos falls
+back to a suitable one internally rather than failing.
+
+| Filter | Effect |
+| --- | --- |
+| `state` | Prefer a persona located in a given US state (e.g. `"CA"`). |
+| `category` | Reserved for future use; accepted but not applied in v1. |
+
+```ts
+AthosRoleplay.create({
+  token,
+  drillKey: 'ma-full-sale',
+  filters: { state: 'CA' },
+});
+```
+
+<Callout type="info">
+  Filters never cause an error — at worst they're ignored. If you need hard guarantees about which
+  personas are available, talk to your Athos contact.
+</Callout>

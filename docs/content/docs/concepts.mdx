@@ -1,0 +1,71 @@
+---
+title: Core concepts
+description: Tenancy, identifiers, the call lifecycle, and call sources.
+---
+
+A few ideas show up everywhere in this API. Read this once and the rest of the docs will read faster.
+
+## Tenancy: you, your reps, your agencies
+
+Your Athos account is a single **tenant** (a "reseller"). Everything you create — calls, scores,
+usage — belongs to your tenant, and the API only ever returns your tenant's data. Your API key
+**is** the tenant boundary.
+
+Within your tenant you describe two things with free-form string ids that **you** own:
+
+- **`externalUserId`** — your stable id for the rep taking the call. Required when you mint a session.
+- **`externalAgencyId`** — an optional label for the rep's agency or team.
+
+<Callout type="warn">
+  `externalAgencyId` is a **label and filter only** — never an authorization boundary. Anyone with
+  your API key can read every call in your tenant regardless of agency. If you run a multi-agency
+  product, enforce per-agency access **in your own backend**.
+</Callout>
+
+Athos does not model managers, hierarchies, or per-agency tenants in v1. The pyramid is flat:
+**tenant → reps**.
+
+## Identifiers
+
+| Id | Looks like | What it is |
+| --- | --- | --- |
+| **`callId`** | `athos_call_GZ1DjOkZv_…` | The stable, public id for a call. Use it for `GET /v1/calls/:id`, in webhooks, and in the SDK `ended` event. **This is the only call id that crosses the API boundary.** |
+| **`sessionId`** | `ext_a1b2c3…` | The SDK session's lifecycle id. Useful for client-side logging; not used for lookups. |
+| **`requestId`** | `req_2f8c1e94-…` | Returned on every API response as the `X-Athos-Request-Id` header. Quote it in support tickets. |
+
+You'll never see an internal database id. `callId` is a semver-stable public contract.
+
+## The call lifecycle
+
+```text
+  created ──▶ live (rep + AI persona talk) ──▶ ended ──▶ scoring ──▶ scored
+                                                                       │
+                                          ┌────────────────────────────┤
+                                          ▼                            ▼
+                                  call.scored webhook         GET /v1/calls[/:id]
+```
+
+A call becomes visible to the REST API and triggers the webhook **only once it is scored**.
+`GET /v1/calls` returns scored calls only — it is a manager-history read, not a queue of
+in-progress calls. The webhook is your push signal; polling `GET /v1/calls` is the backstop.
+
+## Call sources
+
+Every call carries a **`source`**. In v1 it is always **`roleplay`** — a practice call your rep ran
+through the SDK.
+
+<Callout type="info">
+  **Coming soon:** scoring of **real production calls** (a second source, `ingestion`) — your reps'
+  live customer calls run through the same engine. `source` already ships on every call and webhook,
+  so adding it later won't be a breaking change. Branch on it and default to `roleplay`.
+</Callout>
+
+## Where each credential lives
+
+The API has two authentication schemes for two very different callers:
+
+- Your **backend** uses the long-lived **API key** for all server-to-server calls (mint, read).
+- The **browser SDK** uses a short-lived, single-use **session token** for exactly one live call.
+
+This split keeps your API key out of the browser entirely. Details in
+[Authentication](/authentication).

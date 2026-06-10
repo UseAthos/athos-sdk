@@ -1,0 +1,13 @@
+{
+  "title": "Athos Docs",
+  "root": true,
+  "pages": [
+    "index",
+    "quickstart",
+    "concepts",
+    "authentication",
+    "sdk",
+    "backend",
+    "reference"
+  ]
+}

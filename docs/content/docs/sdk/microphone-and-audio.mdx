@@ -1,0 +1,65 @@
+---
+title: Microphone & audio
+description: Device selection, mute, autoplay recovery, and reconnect behavior.
+---
+
+The SDK manages the microphone and the audio element for you. It auto-creates the `<audio>` element
+that plays the persona's voice and appends it to the page — you don't manage playback yourself.
+
+## Selecting a microphone
+
+```ts
+const mics = await session.listMicrophones(); // [{ deviceId, label }]
+await session.setMicrophone(mics[0].deviceId); // switch mid-call, no drop
+```
+
+`listMicrophones()` may prompt the user for microphone permission the first time. `setMicrophone()`
+switches the active input without dropping the call — wire it to a settings dropdown.
+
+## Mute
+
+```ts
+await session.mute();
+await session.unmute();
+```
+
+## Autoplay recovery
+
+Browsers block audio autoplay until the user interacts with the page. If playback is blocked, the
+SDK emits an `error` with code `AUDIO_PLAYBACK_BLOCKED`. Recover by calling `resumeAudio()` **from
+within a user-gesture handler** (a click) — browsers only unblock audio then.
+
+```ts
+session.on('error', ({ code }) => {
+  if (code === 'AUDIO_PLAYBACK_BLOCKED') showResumeButton();
+});
+
+// in your button's click handler:
+resumeButton.onclick = () => session.resumeAudio();
+```
+
+## Reconnect behavior
+
+On a transient network drop the SDK reconnects automatically:
+
+```text
+  drop ──▶ reconnecting ──▶ reconnected        (recovered)
+                       └──▶ error: NETWORK_LOST (after 30s, session ends)
+```
+
+- It emits `reconnecting`, then `reconnected` on recovery.
+- If recovery does not succeed within **30 seconds**, it emits an `error` with code `NETWORK_LOST`
+  and ends the session.
+
+Show a non-blocking banner on `reconnecting` and clear it on `reconnected`; treat `NETWORK_LOST` as
+a terminal error and offer to restart.
+
+## Microphone errors
+
+| Code | Meaning |
+| --- | --- |
+| `MIC_PERMISSION_DENIED` | The user denied microphone permission. Prompt them to allow it. |
+| `MIC_DEVICE_DISCONNECTED` | The active mic was unplugged mid-call. Offer `listMicrophones()` again. |
+| `NO_MIC_AVAILABLE` | No microphone is available on this device. |
+
+See the full list in [Error codes](/sdk/errors).

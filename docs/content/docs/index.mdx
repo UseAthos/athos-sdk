@@ -1,0 +1,81 @@
+---
+title: Overview
+description: Embed live AI roleplay calls and pull scored-call data into your own product.
+---
+
+Athos lets your reps practice live sales calls against AI personas — and automatically transcribes
+and scores each one. This documentation is for engineers integrating Athos into their own product.
+
+## What you get
+
+<Cards>
+  <Card title="Browser SDK" href="/sdk">
+    `@useathos/sdk` runs a live roleplay call in your frontend. The voice transport is fully
+    managed — your code only ever works with the Athos SDK.
+  </Card>
+  <Card title="REST API" href="/reference/api">
+    Four endpoints under `/api/external/v1`. Your backend mints sessions and reads scored calls.
+  </Card>
+  <Card title="Webhook" href="/backend/webhooks">
+    A signed `call.scored` webhook fires the moment a call finishes scoring.
+  </Card>
+  <Card title="OpenAPI spec" href="/openapi.yaml">
+    Import into Postman or generate a client. The machine-readable contract for the REST API.
+  </Card>
+</Cards>
+
+## How it fits together
+
+A roleplay call flows through three surfaces — **your backend**, **the browser SDK**, and **the
+Athos API** — and finishes with a webhook back to your backend:
+
+```text
+  ┌─────────────────┐                                    ┌──────────────────────┐
+  │   Your backend  │ ──(1) POST /v1/session ──────────▶ │      Athos API       │
+  │  (holds API key)│ ◀──────── { token } ────────────── │                      │
+  └────────┬────────┘                                    └──────────┬───────────┘
+           │ (2) hand token to the browser                          │
+           ▼                                                        │
+  ┌─────────────────┐                                              │
+  │  Your frontend  │ ──(3) AthosRoleplay.create({ token }) ──────▶ │  live roleplay call
+  │ (@useathos/sdk) │        session.connect()                     │  (agent speaks)
+  └─────────────────┘                                              │
+                                                                    │ (4) call is scored
+  ┌─────────────────┐                                              ▼
+  │   Your backend  │ ◀──(5) POST call.scored (signed) ──────────  │
+  │  (webhook URL)  │ ──(6) GET /v1/calls/:id ───────────────────▶ │  full score + transcript
+  └─────────────────┘                                              └──────────────────────┘
+```
+
+1. Your backend exchanges its **API key** for a short-lived **session token** (`POST /v1/session`).
+2. You hand that token to the browser.
+3. The SDK redeems it and starts the live call — the AI persona speaks to your rep.
+4. When the call ends, Athos transcribes and scores it.
+5. Athos sends your backend a signed **`call.scored`** webhook.
+6. Your backend fetches the full score + transcript with **`GET /v1/calls/:id`**.
+
+## Two kinds of credentials
+
+| Credential | Who holds it | Used for |
+| --- | --- | --- |
+| **API key** (`ath_live_…`) | your **backend**, secret | mint sessions, read calls — all server-to-server |
+| **Session token** (JWT) | the **browser**, short-lived & single-use | one live roleplay call, via the SDK |
+
+The browser never sees your API key. See [Authentication](/authentication).
+
+## Start here
+
+<Cards>
+  <Card title="Quickstart" href="/quickstart">
+    From zero to a live, scored call in about 15 minutes.
+  </Card>
+  <Card title="Core concepts" href="/concepts">
+    Tenancy, identifiers, the call lifecycle, and call sources.
+  </Card>
+</Cards>
+
+<Callout type="warn">
+  The SDK supports **desktop Chrome, Edge, and Firefox only**. Safari (desktop and iOS) and all
+  mobile browsers are unsupported. Detect ahead of time and prompt the user to switch — see
+  [Browser support](/sdk/browser-support).
+</Callout>

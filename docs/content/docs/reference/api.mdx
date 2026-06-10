@@ -1,0 +1,52 @@
+---
+title: API reference
+description: The four External API endpoints, auth, and the OpenAPI spec.
+---
+
+The External API is four endpoints under a single base URL.
+
+**Base URL:** `https://app.useathos.ai/api/external/v1`
+
+## Endpoints
+
+| Method & path | Auth | CORS | Purpose |
+| --- | --- | --- | --- |
+| `POST /session` | API key | ❌ | [Mint a session token](/backend/minting-tokens) for the SDK. |
+| `POST /roleplay/session` | Session token | ✅ | Redeem a token and start a call. **Called by the SDK**, not you. |
+| `GET /calls` | API key | ❌ | [List scored calls](/backend/reading-calls) (cursor-paginated). |
+| `GET /calls/{callId}` | API key | ❌ | [Get full call detail](/backend/reading-calls) (transcript + score). |
+
+The three API-key endpoints are **server-to-server** and reject cross-origin requests. Only the SDK's
+redeem endpoint accepts browser (CORS) requests. See [Authentication](/authentication).
+
+## Conventions
+
+- **Auth:** bearer token — `Authorization: Bearer <api-key-or-token>`.
+- **Success:** returns the resource JSON **directly** (no envelope).
+- **Errors:** `{ "error": { "code", "message", "requestId" } }`. Branch on `code` — see
+  [error codes](/reference/errors).
+- **Request id:** every response carries `X-Athos-Request-Id`. Quote it in support tickets.
+- **Versioning:** the path is pinned to `/v1`. Breaking changes ship under a new version; `/v1` stays
+  available for at least six months past any successor.
+
+## OpenAPI spec
+
+The full machine-readable contract is published as an OpenAPI 3.1 document:
+
+<Cards>
+  <Card title="Download openapi.yaml" href="/openapi.yaml">
+    Import into Postman or Insomnia, or generate a client in your language.
+  </Card>
+</Cards>
+
+**Import into Postman:** File → Import → paste `https://docs.useathos.ai/openapi.yaml` (or the
+downloaded file). You'll get a ready-to-send collection for all four endpoints — just set your API key
+as the bearer token.
+
+**Generate a client:** point any OpenAPI generator at the spec, e.g.
+
+```bash
+npx @openapitools/openapi-generator-cli generate \
+  -i https://docs.useathos.ai/openapi.yaml \
+  -g typescript-fetch -o ./athos-client
+```

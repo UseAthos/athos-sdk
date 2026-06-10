@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Athos Roleplay SDK — walking-skeleton example</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+      input { font-family: monospace; }
+      #token { width: 100%; margin: 0.25rem 0; }
+      #log { background: #111; color: #0f0; padding: 0.75rem; min-height: 8rem; white-space: pre-wrap; }
+      button { padding: 0.4rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Athos Roleplay SDK — example</h1>
+    <p>
+      1. <code>npm run dev</code> &nbsp; 2. <code>npx tsx scripts/smoke-external-session.ts</code>
+      &nbsp; 3. paste the token below &rarr; Connect &rarr; the agent speaks.
+    </p>
+    <label>token (JWT):</label>
+    <input id="token" placeholder="paste the JWT from the smoke script" />
+    <p>
+      <label>drill: <input id="drill" value="ma-full-sale" /></label>
+      &nbsp;&nbsp;<button id="connect">Connect</button>
+      &nbsp;&nbsp;<button id="list-mics">List mics</button>
+      &nbsp;&nbsp;<button id="check-support">Check support</button>
+    </p>
+    <p id="support" data-supported="">browser support: …</p>
+    <pre id="log"></pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

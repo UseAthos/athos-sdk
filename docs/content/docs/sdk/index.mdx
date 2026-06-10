@@ -1,0 +1,97 @@
+---
+title: SDK overview
+description: Run a live Athos roleplay call in your frontend with @useathos/sdk.
+---
+
+`@useathos/sdk` is a headless browser SDK. It exposes a small, domain-focused API — a roleplay
+session with lifecycle events. Your code only ever works with Athos domain concepts (sessions, events, personas).
+
+- Synchronous `create()` so you register handlers before any network work starts.
+- A typed, discriminated event union and a stable error-code taxonomy.
+- Microphone selection, mute, and automatic reconnect handling built in.
+- Ships as ESM + CJS with full TypeScript types.
+
+## Install
+
+```bash
+npm install @useathos/sdk
+```
+
+## The five-line integration
+
+```ts
+import { AthosRoleplay } from '@useathos/sdk';
+
+const token = await getAthosToken();                         // 1. your backend mints a token
+const session = AthosRoleplay.create({ token, drillKey: 'ma-full-sale' }); // 2. create (sync)
+session.on('ready', ({ persona }) => console.log(`${persona.name} is ready`)); // 3. handlers
+session.on('ended', ({ durationSec }) => console.log(`done in ${durationSec}s`));
+await session.connect();                                     // 4. join the call
+```
+
+`getAthosToken()` is **your** endpoint — it calls `POST /v1/session` server-side and returns the
+token. The browser never sees your API key. See [minting tokens](/backend/minting-tokens).
+
+<Callout type="warn">
+  Always register handlers **before** `connect()`. `create()` does no network work, so nothing is
+  missed; `connect()` is what redeems the token and joins the call.
+</Callout>
+
+## `AthosRoleplay.create(options)`
+
+Creates a session synchronously. Throws `BROWSER_NOT_SUPPORTED` immediately on Safari / mobile (see
+[Browser support](/sdk/browser-support)).
+
+<TypeTable
+  type={{
+    token: {
+      type: 'string',
+      required: true,
+      description: 'The single-use session token from your backend (POST /v1/session).',
+    },
+    drillKey: {
+      type: 'string',
+      required: true,
+      description:
+        'Which drill to practice, e.g. "ma-full-sale". The known catalog is exported as the AthosDrillKey type + ATHOS_DRILL_KEYS list for opt-in checking. See the Drills reference.',
+    },
+    filters: {
+      type: '{ state?: string; category?: string }',
+      description: 'Best-effort persona filters. Falls back internally if nothing matches.',
+    },
+    difficulty: {
+      type: '"Beginner" | "Advanced" | "Elite"',
+      default: '"Advanced"',
+      description: 'Persona difficulty.',
+    },
+    debug: {
+      type: 'boolean',
+      default: 'false',
+      description: 'Logs SDK lifecycle to the console, prefixed "[Athos]".',
+    },
+  }}
+/>
+
+## The session object
+
+`create()` returns a session with these methods:
+
+| Method | Description |
+| --- | --- |
+| `connect()` | Redeem the token and join the call. Returns a `Promise<void>`. |
+| `disconnect()` | Cleanly leave the call. |
+| `on(event, cb)` | Subscribe to an [event](/sdk/events). Returns an unsubscribe function. |
+| `off(event, cb)` | Unsubscribe. |
+| `listMicrophones()` | Enumerate available mics. See [Microphone & audio](/sdk/microphone-and-audio). |
+| `setMicrophone(deviceId)` | Switch mic mid-call without dropping. |
+| `mute()` / `unmute()` | Mute / unmute the local mic. |
+| `resumeAudio()` | Resume playback after `AUDIO_PLAYBACK_BLOCKED` (call from a user gesture). |
+
+## What's next
+
+<Cards>
+  <Card title="Events" href="/sdk/events">The lifecycle event union and payloads.</Card>
+  <Card title="Microphone & audio" href="/sdk/microphone-and-audio">Device control and reconnect.</Card>
+  <Card title="Browser support" href="/sdk/browser-support">Detect Safari/mobile before connecting.</Card>
+  <Card title="Error codes" href="/sdk/errors">Handle every failure mode.</Card>
+</Cards>

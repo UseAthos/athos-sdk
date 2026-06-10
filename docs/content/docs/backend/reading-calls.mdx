@@ -1,0 +1,163 @@
+---
+title: Reading calls
+description: List scored calls and fetch full detail, including the score object.
+---
+
+Two endpoints, both server-to-server with your API key: a slim **list** for history views, and a
+full **detail** for one call's transcript and score.
+
+## List — `GET /v1/calls`
+
+Returns **scored** calls for your tenant, newest first (`endedAt` descending), cursor-paginated.
+
+**Query parameters**
+
+| Param | Required | Notes |
+| --- | --- | --- |
+| `from` | ✅ | Lower bound (ISO 8601). |
+| `to` | | Upper bound (ISO 8601). |
+| `source` | | Filter by source. Always `roleplay` in v1. |
+| `externalUserId` | | Filter to one rep. |
+| `externalAgencyId` | | Filter to one agency (a label, never an auth boundary). |
+| `limit` | | Page size, default `50`, max `100`. |
+| `cursor` | | Opaque token from a previous `nextCursor`. |
+
+**Response** — a slim row per call (no score, no transcript):
+
+```json
+{
+  "data": [
+    {
+      "id": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
+      "source": "roleplay",
+      "externalUserId": "rep_8842",
+      "externalAgencyId": "agency_chicago",
+      "drillKey": "ma-full-sale",
+      "startedAt": "2026-06-05T14:39:40.295Z",
+      "endedAt": "2026-06-05T14:40:17.536Z",
+      "durationSec": 37,
+      "scoredAt": "2026-06-05T14:40:54.005Z"
+    }
+  ],
+  "nextCursor": "eyJ0IjoxNzQ5…"
+}
+```
+
+`nextCursor` is `null` on the last page. Pass it back as `cursor` to page through.
+
+<Tabs items={['curl', 'Node', 'Python']}>
+<Tab value="curl">
+```bash
+curl -G https://app.useathos.ai/api/external/v1/calls \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  --data-urlencode "from=2026-06-01T00:00:00Z" \
+  --data-urlencode "limit=50"
+```
+</Tab>
+<Tab value="Node">
+```ts
+async function* allCalls(from: string) {
+  let cursor: string | null = null;
+  do {
+    const url = new URL('https://app.useathos.ai/api/external/v1/calls');
+    url.searchParams.set('from', from);
+    if (cursor) url.searchParams.set('cursor', cursor);
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${process.env.ATHOS_API_KEY}` } });
+    const page = await r.json();
+    yield* page.data;
+    cursor = page.nextCursor;
+  } while (cursor);
+}
+
+for await (const call of allCalls('2026-06-01T00:00:00Z')) {
+  console.log(call.id, call.drillKey, call.scoredAt);
+}
+```
+</Tab>
+<Tab value="Python">
+```python
+import os, requests
+
+def all_calls(frm: str):
+    cursor = None
+    while True:
+        params = {"from": frm}
+        if cursor:
+            params["cursor"] = cursor
+        r = requests.get(
+            "https://app.useathos.ai/api/external/v1/calls",
+            headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
+            params=params, timeout=10,
+        )
+        page = r.json()
+        yield from page["data"]
+        cursor = page["nextCursor"]
+        if not cursor:
+            break
+```
+</Tab>
+</Tabs>
+
+<Callout type="info">
+  `GET /v1/calls` is a history read — it returns scored calls only, not in-progress ones. Use the
+  [webhook](/backend/webhooks) as your push signal and this endpoint as the backstop.
+</Callout>
+
+## Detail — `GET /v1/calls/:callId`
+
+Look up one call by its public `id` (from a list row, a webhook `callId`, or the SDK `ended` event).
+A call from another tenant returns `404 CALL_NOT_FOUND`.
+
+```bash
+curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ8mp \
+  -H "Authorization: Bearer $ATHOS_API_KEY"
+```
+
+**Response** (roleplay; abridged):
+
+```json
+{
+  "id": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
+  "source": "roleplay",
+  "status": "scored",
+  "externalUserId": "rep_8842",
+  "externalAgencyId": "agency_chicago",
+  "drillKey": "ma-full-sale",
+  "startedAt": "2026-06-05T14:39:40.295Z",
+  "endedAt": "2026-06-05T14:40:17.536Z",
+  "durationSec": 37,
+  "scoredAt": "2026-06-05T14:40:54.005Z",
+  "transcript": [
+    { "role": "assistant", "content": "Hey." },
+    { "role": "user", "content": "Hi James, how are you?" }
+  ],
+  "score": {
+    "overallScore": 82,
+    "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
+    "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+  },
+  "audioUrl": null,
+  "audioUrlExpiresAt": null,
+  "waveform": null,
+  "createdAt": "2026-06-05T14:39:45.000Z",
+  "updatedAt": "2026-06-05T14:40:54.100Z"
+}
+```
+
+## The `score` object
+
+For a **roleplay** call, `score` has three fields:
+
+| Field | Type | What it is |
+| --- | --- | --- |
+| `overallScore` | number | Overall call performance, **0–100** (higher is better). |
+| `summary` | string | A short natural-language summary of the call. |
+| `feedback` | string | Coaching feedback for the rep. |
+
+```json
+{
+  "overallScore": 82,
+  "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
+  "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+}
+```

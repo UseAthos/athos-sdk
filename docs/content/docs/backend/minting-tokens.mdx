@@ -1,0 +1,120 @@
+---
+title: Minting session tokens
+description: Exchange your API key for a short-lived session token the SDK can use.
+---
+
+The browser SDK can't hold your API key, so your backend mints a short-lived, single-use **session
+token** for it. Expose this as your own endpoint that your authenticated frontend calls.
+
+## `POST /v1/session`
+
+```http
+POST https://app.useathos.ai/api/external/v1/session
+Authorization: Bearer ath_live_…
+Content-Type: application/json
+```
+
+**Request body**
+
+<TypeTable
+  type={{
+    externalUserId: {
+      type: 'string',
+      required: true,
+      description: 'Your stable id for the rep taking the call. Echoed back on calls and webhooks.',
+    },
+    externalAgencyId: {
+      type: 'string',
+      description: 'Optional label for the rep\'s agency/team. A filter only — never an auth boundary.',
+    },
+  }}
+/>
+
+**Response** `200 OK`
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9…",
+  "expiresAt": "2026-06-05T18:05:00.000Z"
+}
+```
+
+## Implement your token endpoint
+
+Wrap `POST /v1/session` in your own authenticated endpoint so the API key stays on your backend and
+you decide which rep the token represents.
+
+<Tabs items={['curl', 'Node', 'Python']}>
+<Tab value="curl">
+```bash
+curl -X POST https://app.useathos.ai/api/external/v1/session \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"externalUserId":"rep_8842","externalAgencyId":"agency_chicago"}'
+```
+</Tab>
+<Tab value="Node">
+```ts
+// Your endpoint, e.g. POST /athos/token
+app.post('/athos/token', requireAuth, async (req, res) => {
+  const r = await fetch('https://app.useathos.ai/api/external/v1/session', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.ATHOS_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      externalUserId: req.user.id,          // never trust a client-supplied id
+      externalAgencyId: req.user.agencyId,
+    }),
+  });
+  const body = await r.json();
+  res.status(r.status).json(body);          // { token, expiresAt } on success
+});
+```
+</Tab>
+<Tab value="Python">
+```python
+# Your endpoint, e.g. POST /athos/token
+import os, requests
+
+@app.post("/athos/token")
+@require_auth
+def athos_token():
+    r = requests.post(
+        "https://app.useathos.ai/api/external/v1/session",
+        headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
+        json={
+            "externalUserId": current_user.id,        # never trust a client-supplied id
+            "externalAgencyId": current_user.agency_id,
+        },
+        timeout=10,
+    )
+    return r.json(), r.status_code   # { "token": ..., "expiresAt": ... }
+```
+</Tab>
+</Tabs>
+
+<Callout type="warn">
+  Always derive `externalUserId` from your **authenticated session**, not from the request body. A
+  token scopes a live call to that rep; letting the client choose it lets one rep impersonate another.
+</Callout>
+
+## Rules of the road
+
+- **Mint at the moment of use.** The token lives ~5 minutes and is single-use. Mint it when the rep
+  clicks "start practice", hand it straight to `AthosRoleplay.create({ token })`, and connect.
+- **One token per call.** Reusing a token returns `TOKEN_ALREADY_USED` at the SDK.
+- **Server-to-server only.** This endpoint rejects cross-origin (CORS) requests — it must be called
+  from your backend.
+
+## Errors
+
+| Status | `code` | Cause |
+| --- | --- | --- |
+| 400 | `INVALID_REQUEST` | Missing/blank `externalUserId`. |
+| 401 | `INVALID_API_KEY` | Bad or missing API key. |
+| 401 | `API_KEY_REVOKED` | The key was revoked — rotate. |
+| 403 | `TENANT_INACTIVE` | Your tenant is inactive. |
+
+Full envelope and list: [error reference](/reference/errors).

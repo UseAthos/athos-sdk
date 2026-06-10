@@ -1,0 +1,55 @@
+---
+title: Browser support
+description: Supported browsers and how to detect unsupported ones before connecting.
+---
+
+The SDK runs on **desktop Chrome, Edge, and Firefox only**.
+
+<Callout type="warn">
+  **Safari (desktop and iOS) and all mobile browsers are unsupported.** `create()` throws
+  `BROWSER_NOT_SUPPORTED` synchronously on them. Detect ahead of time and prompt the user to switch
+  to a supported desktop browser before they try to start a call.
+</Callout>
+
+## Detect before you connect
+
+The SDK exports `detectBrowserSupport` so you can check the environment and show a friendly message
+*before* calling `create()`:
+
+```ts
+import { detectBrowserSupport } from '@useathos/sdk';
+
+const support = detectBrowserSupport(navigator.userAgent);
+// support => { supported: boolean; reason?: 'safari' | 'mobile' | 'unknown' }
+
+if (!support.supported) {
+  showUnsupportedBrowserMessage(support.reason);
+  // e.g. "Practice calls require desktop Chrome, Edge, or Firefox."
+} else {
+  startPracticeButton.disabled = false;
+}
+```
+
+## Handling the thrown error
+
+If you call `create()` on an unsupported browser anyway, it throws synchronously — wrap it:
+
+```ts
+try {
+  const session = AthosRoleplay.create({ token, drillKey });
+  // …
+} catch (e) {
+  if (e.code === 'BROWSER_NOT_SUPPORTED') {
+    showUnsupportedBrowserMessage();
+  } else {
+    throw e;
+  }
+}
+```
+
+## Recommended UX
+
+1. On the page where a rep starts practice, run `detectBrowserSupport(navigator.userAgent)` on load.
+2. If unsupported, disable the "Start practice" button and show guidance to open the app in desktop
+   Chrome, Edge, or Firefox.
+3. Keep `create()` wrapped in `try/catch` as a backstop.

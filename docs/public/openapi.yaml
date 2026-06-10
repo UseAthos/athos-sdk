@@ -1,0 +1,533 @@
+openapi: 3.1.0
+info:
+  title: Athos External API
+  version: "1.0"
+  contact:
+    name: Athos Support
+    url: https://docs.useathos.ai
+  description: |
+    The Athos **External API** lets a reseller integrate Athos AI roleplay and scored-call data into
+    their own product. It has four endpoints across two auth schemes:
+
+    - **API key** (`ath_live_…`) — server-to-server, used by your backend to mint sessions and read calls.
+    - **Session token** (a short-lived, single-use JWT your backend mints) — used **only** by the
+      browser SDK to redeem a live roleplay session.
+
+    All responses carry an `X-Athos-Request-Id` header. Success bodies are returned **raw** (not
+    wrapped). Errors use the envelope `{ "error": { "code", "message", "requestId" } }`.
+
+    > The live voice transport is hidden behind the `@useathos/sdk`. The
+    > `connectionTicket`/`connectionUrl` returned by the redeem endpoint are opaque and consumed
+    > only by the SDK.
+servers:
+  - url: https://app.useathos.ai/api/external/v1
+    description: Production
+
+tags:
+  - name: Sessions
+    description: Mint and redeem roleplay sessions.
+  - name: Calls
+    description: Read scored calls.
+
+paths:
+  /session:
+    post:
+      tags: [Sessions]
+      summary: Mint a session token
+      operationId: mintSession
+      description: |
+        Called by **your backend** (server-to-server). Exchanges your API key for a short-lived,
+        single-use **session token** (a JWT, ~5-minute TTL) scoped to one of your reps. Hand the
+        returned `token` to the browser, which passes it to `AthosRoleplay.create({ token })`.
+
+        This endpoint does **not** accept cross-origin (CORS) requests — never call it from a browser.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MintSessionRequest"
+            examples:
+              default:
+                value:
+                  externalUserId: "rep_8842"
+                  externalAgencyId: "agency_chicago"
+      responses:
+        "200":
+          description: A short-lived single-use session token.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MintSessionResponse"
+              examples:
+                default:
+                  value:
+                    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZW5hbnRJ…"
+                    expiresAt: "2026-06-05T18:05:00.000Z"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /roleplay/session:
+    post:
+      tags: [Sessions]
+      summary: Redeem a session token (SDK only)
+      operationId: redeemSession
+      description: |
+        Called by the **browser SDK** (`session.connect()`), not by you directly. Redeems the
+        single-use session token for a connection ticket and starts the live roleplay call. Documented
+        here for completeness — you should never need to call it yourself.
+
+        This is the **only** endpoint that accepts cross-origin (CORS) requests, because the SDK runs
+        in your end users' browsers. The single-use JWT is the trust boundary.
+      security:
+        - SessionToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedeemSessionRequest"
+            examples:
+              default:
+                value:
+                  drillKey: "ma-full-sale"
+                  difficulty: "Advanced"
+      responses:
+        "200":
+          description: Connection details for the live session (opaque to the consumer).
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedeemSessionResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /calls:
+    get:
+      tags: [Calls]
+      summary: List scored calls
+      operationId: listCalls
+      description: |
+        Called by **your backend**. Returns **scored** calls for your tenant, newest first
+        (`endedAt` descending), cursor-paginated. This is a manager-history read, not a webhook
+        reconciliation feed.
+
+        Server-to-server only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Lower bound (inclusive) on the call window. ISO 8601.
+          schema:
+            type: string
+            format: date-time
+          example: "2026-06-01T00:00:00Z"
+        - name: to
+          in: query
+          required: false
+          description: Upper bound (inclusive). ISO 8601.
+          schema:
+            type: string
+            format: date-time
+        - name: source
+          in: query
+          required: false
+          description: Filter by call source.
+          schema:
+            $ref: "#/components/schemas/CallSource"
+        - name: externalUserId
+          in: query
+          required: false
+          description: Filter to one of your reps.
+          schema:
+            type: string
+        - name: externalAgencyId
+          in: query
+          required: false
+          description: Label filter only — never an authorization boundary.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50, capped at 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque pagination token from a previous response's `nextCursor`.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A page of scored calls.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCallsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /calls/{callId}:
+    get:
+      tags: [Calls]
+      summary: Get call detail
+      operationId: getCall
+      description: |
+        Called by **your backend**. Returns the full scored detail for one call, including the
+        diarized transcript and the `score` blob. Look up by the public `id`
+        (`athos_call_…`) returned in the list response, the webhook `callId`, or the SDK `ended` event.
+
+        A call belonging to a different tenant returns `404 CALL_NOT_FOUND` (existence never leaks
+        across tenants). Server-to-server only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: callId
+          in: path
+          required: true
+          description: The public call id (`athos_call_…`).
+          schema:
+            type: string
+          example: "athos_call_GZ1DjOkZv_VEPoE-CJ8mp"
+      responses:
+        "200":
+          description: The full call detail.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CallDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Your reseller API key as a bearer token: `Authorization: Bearer ath_live_…`. Issued by Athos
+        (shown once). Server-to-server only — never expose it to a browser.
+    SessionToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        The short-lived, single-use session token from `POST /session`, sent by the SDK as
+        `Authorization: Bearer <token>`.
+
+  headers:
+    RequestId:
+      description: Unique id for this request; quote it in support tickets.
+      schema:
+        type: string
+        example: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+
+  responses:
+    InvalidRequest:
+      description: The request was malformed (validation, bad cursor, unknown drill).
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            invalidRequest:
+              value:
+                error:
+                  code: "INVALID_REQUEST"
+                  message: "externalUserId is required"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    Unauthorized:
+      description: Authentication failed (bad/revoked key, or invalid/expired/used token).
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            invalidApiKey:
+              value:
+                error:
+                  code: "INVALID_API_KEY"
+                  message: "Invalid API key"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    Forbidden:
+      description: Authenticated but not permitted (inactive tenant, IP not allowed, quota).
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: No such call for this tenant.
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            callNotFound:
+              value:
+                error:
+                  code: "CALL_NOT_FOUND"
+                  message: "Call not found"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              $ref: "#/components/schemas/ErrorCode"
+            message:
+              type: string
+              description: Human-readable. Not machine-parsable — branch on `code`, not `message`.
+            requestId:
+              type: string
+
+    ErrorCode:
+      type: string
+      description: The Athos error taxonomy returned by the REST API.
+      enum:
+        - INVALID_API_KEY
+        - API_KEY_REVOKED
+        - INVALID_TOKEN
+        - TOKEN_EXPIRED
+        - TOKEN_ALREADY_USED
+        - IP_NOT_ALLOWED
+        - TENANT_INACTIVE
+        - TENANT_QUOTA_EXCEEDED
+        - INVALID_REQUEST
+        - DRILL_NOT_FOUND
+        - CALL_NOT_FOUND
+        - SERVICE_UNAVAILABLE
+        - INTERNAL_ERROR
+
+    CallSource:
+      type: string
+      enum: [roleplay]
+      description: >
+        The call source. Always `roleplay` (a practice call run through the SDK) in v1. Scoring of real
+        production calls (`ingestion`) is coming soon; `source` ships on every call so it won't be a
+        breaking addition. Branch on it and default to `roleplay`.
+
+    MintSessionRequest:
+      type: object
+      required: [externalUserId]
+      properties:
+        externalUserId:
+          type: string
+          minLength: 1
+          description: Your stable id for the rep taking the call. Echoed back on calls + webhooks.
+        externalAgencyId:
+          type: string
+          minLength: 1
+          description: Optional label for the rep's agency. A filter/label only — never an auth boundary.
+
+    MintSessionResponse:
+      type: object
+      required: [token, expiresAt]
+      properties:
+        token:
+          type: string
+          description: The single-use session token (JWT). Pass to `AthosRoleplay.create({ token })`.
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the token expires (~5 minutes). Mint it at the moment the rep clicks "start".
+
+    RedeemSessionRequest:
+      type: object
+      required: [drillKey]
+      properties:
+        drillKey:
+          type: string
+          description: >-
+            The drill to practice. In v1 the only supported drill is `ma-full-sale` (Medicare
+            Advantage — full enrollment); more are coming soon. Deliberately not an enum so newly
+            added drills don't break generated clients. See the Drills reference for the catalog.
+          examples: ["ma-full-sale"]
+        filters:
+          type: object
+          description: Best-effort persona filters. If nothing matches, Athos falls back internally.
+          properties:
+            state:
+              type: string
+              description: Narrow the persona pool to a US state (e.g. "CA").
+            category:
+              type: string
+              description: Reserved for future use; accepted but not applied in v1.
+        difficulty:
+          type: string
+          enum: [Beginner, Advanced, Elite]
+          default: Advanced
+          description: Persona difficulty. Defaults to Advanced.
+
+    RedeemSessionResponse:
+      type: object
+      required: [connectionTicket, connectionUrl, sessionId, callId, persona]
+      properties:
+        connectionTicket:
+          type: string
+          description: Opaque transport credential, consumed only by the SDK.
+        connectionUrl:
+          type: string
+          description: Opaque transport URL, consumed only by the SDK.
+        sessionId:
+          type: string
+          description: SDK session lifecycle id (`ext_…`).
+        callId:
+          type: string
+          description: Stable public call id (`athos_call_…`) for later lookups, webhooks, and `ended`.
+        persona:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+
+    SlimCall:
+      type: object
+      description: The list-row shape (no `score`, no transcript).
+      required: [id, source, durationSec]
+      properties:
+        id:
+          type: string
+          description: Public call id (`athos_call_…`). Never the internal database id.
+        source:
+          $ref: "#/components/schemas/CallSource"
+        externalUserId:
+          type: [string, "null"]
+        externalAgencyId:
+          type: [string, "null"]
+        drillKey:
+          type: [string, "null"]
+          description: The drill key the call practiced (e.g. `ma-full-sale`).
+        startedAt:
+          type: [string, "null"]
+          format: date-time
+        endedAt:
+          type: [string, "null"]
+          format: date-time
+        durationSec:
+          type: integer
+        scoredAt:
+          type: [string, "null"]
+          format: date-time
+
+    CallDetail:
+      allOf:
+        - $ref: "#/components/schemas/SlimCall"
+        - type: object
+          required: [status, transcript, score, createdAt, updatedAt]
+          properties:
+            status:
+              type: string
+              enum: [scored]
+            transcript:
+              type: array
+              description: Diarized turns (role + content). Treat each turn loosely.
+              items:
+                type: object
+                additionalProperties: true
+            score:
+              $ref: "#/components/schemas/Score"
+            audioUrl:
+              type: [string, "null"]
+              description: Stored recording URL, served as-is. `null` for roleplay until egress lands.
+            audioUrlExpiresAt:
+              type: [string, "null"]
+              description: Reserved; always null in v1 (the URL is plain, not signed).
+            waveform:
+              description: Reserved; null in v1.
+              type: [object, "null"]
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    Score:
+      type: object
+      additionalProperties: true
+      required: [overallScore, summary, feedback]
+      description: |
+        The scored result of a roleplay call. **Richer scoring (per-skill dimensions and a compliance
+        scorecard) is coming soon and will be additive** — new optional keys, so reading these three
+        fields stays forward-compatible. `additionalProperties` is `true` for that reason; don't assume
+        these are the only keys.
+      properties:
+        overallScore:
+          type: number
+          description: Overall call performance, 0–100 (higher is better).
+        summary:
+          type: string
+          description: Short natural-language summary of the call.
+        feedback:
+          type: string
+          description: Coaching feedback for the rep.
+      example:
+        overallScore: 82
+        summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."
+        feedback: "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+
+    ListCallsResponse:
+      type: object
+      required: [data, nextCursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SlimCall"
+        nextCursor:
+          type: [string, "null"]
+          description: Pass as `cursor` to fetch the next page. `null` on the last page.

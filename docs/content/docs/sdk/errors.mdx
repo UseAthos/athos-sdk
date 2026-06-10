@@ -1,0 +1,62 @@
+---
+title: Error codes
+description: The SDK error taxonomy and how to handle each failure.
+---
+
+Errors surface two ways, and you should handle both:
+
+- as an **`error` event** — `session.on('error', ({ code, message }) => …)`;
+- as a **rejected promise** from `connect()` — `await session.connect().catch(…)`.
+
+Always branch on **`code`**. `message` is human-readable and may change — never parse it. The full
+runtime list is exported as `ATHOS_ERROR_CODES`.
+
+```ts
+import { AthosRoleplayError } from '@useathos/sdk';
+
+session.on('error', ({ code, message }) => {
+  switch (code) {
+    case 'MIC_PERMISSION_DENIED': return promptForMicAccess();
+    case 'AUDIO_PLAYBACK_BLOCKED': return showResumeButton();
+    case 'NETWORK_LOST': return offerRestart();
+    default: console.error(code, message);
+  }
+});
+```
+
+## Codes the SDK emits
+
+These originate in the browser at runtime:
+
+| Code | Meaning |
+| --- | --- |
+| `MIC_PERMISSION_DENIED` | The user denied microphone permission. |
+| `MIC_DEVICE_DISCONNECTED` | The active microphone was unplugged mid-call. |
+| `NO_MIC_AVAILABLE` | No microphone is available on this device. |
+| `NETWORK_LOST` | The connection dropped and could not recover within 30s. The session ended. |
+| `AUDIO_PLAYBACK_BLOCKED` | The browser blocked audio autoplay; call `resumeAudio()` from a user gesture. |
+| `BROWSER_NOT_SUPPORTED` | Safari / mobile / unsupported browser (thrown synchronously from `create()`). |
+| `SESSION_ALREADY_CONNECTED` | `connect()` was called twice on the same session. |
+
+## Codes from the session redemption
+
+When `connect()` redeems the token, the server may reject it. These surface through the same `error`
+channel:
+
+| Code | Meaning | What to do |
+| --- | --- | --- |
+| `INVALID_TOKEN` | The token was malformed or rejected. | Mint a fresh token. |
+| `TOKEN_EXPIRED` | The token's ~5-minute lifetime elapsed before connecting. | Mint at "start" click, not page load. |
+| `TOKEN_ALREADY_USED` | The single-use token was already redeemed. | Mint a new token per call. |
+| `DRILL_NOT_FOUND` | The `drillKey` doesn't match a known drill. | Check the [Drills reference](/reference/drills). |
+| `INVALID_REQUEST` | The request was invalid (e.g. blank `drillKey`). | Fix the `create()` options. |
+| `TENANT_INACTIVE` | Your Athos tenant is inactive. | Contact Athos. |
+| `TENANT_QUOTA_EXCEEDED` | Your tenant exceeded its usage quota. | Contact Athos. |
+| `SERVICE_UNAVAILABLE` | Athos is temporarily unavailable. | Retry shortly. |
+| `INTERNAL_ERROR` | An unexpected error. | Retry; if it persists, contact Athos with the message. |
+
+<Callout type="info">
+  The token-lifecycle codes (`INVALID_TOKEN`, `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`) almost always
+  trace back to **when** you mint the token. Mint it the instant the rep clicks "start practice",
+  use it once, and let it expire — see [Authentication](/authentication).
+</Callout>
