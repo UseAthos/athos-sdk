@@ -68,6 +68,7 @@ AthosRoleplay.create({
 <Callout type="info">
   A filter never fails a call — at worst it is ignored. A drill whose persona pool is entirely
   unavailable is a different situation: the session returns `SERVICE_UNAVAILABLE` (503), which is
-  temporary and retryable, not a filter error. If you need hard guarantees about which personas are
-  available, talk to your Athos contact.
+  temporary, not a filter error. It does consume the session token, so recover by minting a new
+  token rather than replaying the same request. If you need hard guarantees about which personas
+  are available, talk to your Athos contact.
 </Callout>

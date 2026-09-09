@@ -1,43 +1,59 @@
-// Public, semver-protected contract for @useathos/sdk (D-56). The Slice 1
-// names are locked; this is the full event/device/error surface (Slice 8). No
-// vendor noun appears anywhere in this file — the voice transport is hidden
-// (D-04/D-54).
+// The public, semver-stable contract of @useathos/sdk: the drill catalog, the
+// create() options, the event map, the error taxonomy and the session handle.
+// Every doc comment in this file ships in dist/index.d.ts and is read by
+// customers on editor hover — keep it customer-facing (see CLAUDE.md).
 
 /**
- * The friendly drill catalog (D-44). Mirrors `FRIENDLY_DRILL_KEYS` in the
- * product repo's `lib/external/drill-key-map.ts` (the server's source of truth).
- * Keeping the two in sync is a MANUAL cross-repo discipline (D-03) — each side
- * pins its own literal list in a test, and a drill change is a paired PR.
- * OPT-IN tooling only: `drillKey` stays `string` so a reseller can pass a newly
- * enabled key (or one read from their own config/DB) without a package bump —
- * unknown keys are validated server-side (DRILL_NOT_FOUND). Append-only: keys
- * are never renamed.
+ * The drills Athos can run today.
+ *
+ * The catalog is **append-only**: a key is added when a new drill goes live and
+ * is never renamed or removed, so a key you ship today keeps working.
+ *
+ * This type is **opt-in**. `AthosRoleplayCreateOptions.drillKey` is deliberately
+ * `string`, so a drill newly enabled on the Athos side works without upgrading
+ * this package and you can pass a key straight from your own config or database.
+ * Unknown keys are rejected by the server with `DRILL_NOT_FOUND`. Use this type
+ * (and `ATHOS_DRILL_KEYS`) when you would rather have the compile-time check.
  */
 export type AthosDrillKey = "ma-full-sale" | "fe-full-sale";
 
-/** All available drill keys as a runtime list, e.g. for rendering a scenario picker. */
-export const ATHOS_DRILL_KEYS: readonly AthosDrillKey[] = ["ma-full-sale", "fe-full-sale"];
+/**
+ * All available drill keys as a runtime list, e.g. for rendering a scenario
+ * picker. Frozen: the array instance is shared by every module that imports this
+ * package, so mutating it would corrupt the catalog for all of them.
+ */
+export const ATHOS_DRILL_KEYS: readonly AthosDrillKey[] = Object.freeze([
+  "ma-full-sale",
+  "fe-full-sale",
+]);
 
 export interface AthosRoleplayCreateOptions {
-  /** JIT single-use JWT minted by the reseller backend (D-05). */
+  /**
+   * Single-use session token, minted by your backend at the moment the rep
+   * starts a call.
+   */
   token: string;
   /**
-   * Friendly drill key, e.g. "ma-full-sale" or "fe-full-sale" (D-44).
-   * REQUIRED (D-36).
-   * Deliberately `string`, not `AthosDrillKey` — new server-side drills must
-   * work without an SDK bump. Use the exported `AthosDrillKey` type and
-   * `ATHOS_DRILL_KEYS` list to opt in to compile-time checking.
+   * Which drill to practice, e.g. "ma-full-sale" or "fe-full-sale". Required.
+   *
+   * Deliberately `string`, not `AthosDrillKey` — a drill newly enabled on the
+   * Athos side must work without upgrading this package. Unknown keys are
+   * rejected by the server with `DRILL_NOT_FOUND`. Opt in to compile-time
+   * checking with the `AthosDrillKey` type / `ATHOS_DRILL_KEYS` list.
    */
   drillKey: string;
   /**
-   * Best-effort persona filters (D-36): honored when a matching persona exists,
-   * otherwise dropped and an unfiltered persona is served. A filter never fails
-   * a call; only a drill with no available persona at all does, retryably.
+   * Best-effort persona filters: honored when a matching persona exists,
+   * otherwise dropped so an unfiltered persona is served — a filter never fails
+   * a call. Only a drill with no available persona at all fails, as
+   * `SERVICE_UNAVAILABLE`; that is transient, but the attempt consumes the
+   * session token, so recover by minting a new token rather than retrying the
+   * same one.
    */
   filters?: { state?: string; category?: string };
-  /** Persona difficulty. Defaults to "Advanced" server-side (D-36). */
+  /** Persona difficulty. Defaults to "Advanced". */
   difficulty?: "Beginner" | "Advanced" | "Elite";
-  /** Console logs prefixed "[Athos]" (D-54). */
+  /** Console logs prefixed "[Athos]". */
   debug?: boolean;
   /**
    * @internal Override the Athos API base URL (defaults to production).
@@ -47,9 +63,9 @@ export interface AthosRoleplayCreateOptions {
 }
 
 /**
- * The full discriminated event union (D-56). There is deliberately no live
- * `transcript` event (D-53) — the diarized transcript is delivered post-call via
- * the REST API (`GET /v1/calls/:callId`), not streamed during the call.
+ * The full event union. There is deliberately no live `transcript` event — the
+ * diarized transcript is delivered after the call through the REST API
+ * (`GET /v1/calls/:callId`), not streamed during it.
  */
 export interface AthosEventMap {
   /** connect() was called; the token is being redeemed / the session joined. */
@@ -60,27 +76,25 @@ export interface AthosEventMap {
   personaSpeaking: { speaking: boolean };
   /** The local rep started (`true`) or stopped (`false`) speaking. */
   userSpeaking: { speaking: boolean };
-  /** A transient connection drop is being recovered automatically (D-52). */
+  /** A transient connection drop is being recovered automatically. */
   reconnecting: void;
-  /** The connection recovered after a transient drop (D-52). */
+  /** The connection recovered after a transient drop. */
   reconnected: void;
   /** The call ended; carries the stable call id + wall-clock duration. */
   ended: { callId: string; durationSec: number };
-  /** A domain error. Branch on `code` (D-38); `message` is human-readable only. */
+  /** An error. Branch on `code`; `message` is human-readable only. */
   error: { code: AthosErrorCode; message: string };
 }
 
 export type AthosEventName = keyof AthosEventMap;
 
 /**
- * The Athos-domain error taxonomy (D-38), shared between the REST API and the
- * SDK. No vendor nouns. Consumers branch on `code`; `message` is human-readable
- * and NOT machine-parsable.
+ * The Athos error taxonomy, shared by this SDK and the Athos HTTP API. Branch on
+ * `code`; `message` is human-readable and NOT machine-parsable.
  *
- * The REST half mirrors `ExternalErrorCode` in `features/external-api/errors.ts`
- * (the server's source of truth) so the codes the redeem call surfaces are typed
- * truthfully. Not every REST code is reachable from the SDK's single redeem call
- * (e.g. `INVALID_API_KEY` is mint-only), but the union is the full shared set.
+ * This is the full shared set, so not every code is reachable from the SDK — for
+ * example `INVALID_API_KEY` only applies to the token-minting call your backend
+ * makes. The list is append-only: branch on the codes you know and log the rest.
  */
 export type AthosErrorCode =
   // --- SDK / browser-runtime codes (no HTTP status; emitted client-side) ---
@@ -91,7 +105,7 @@ export type AthosErrorCode =
   | "AUDIO_PLAYBACK_BLOCKED"
   | "BROWSER_NOT_SUPPORTED"
   | "SESSION_ALREADY_CONNECTED"
-  // --- REST half of the D-38 taxonomy (features/external-api/errors.ts) ---
+  // --- Codes returned by the Athos HTTP API ---
   | "INVALID_API_KEY"
   | "API_KEY_REVOKED"
   | "INVALID_TOKEN"
@@ -130,7 +144,7 @@ export const ATHOS_ERROR_CODES: readonly AthosErrorCode[] = [
   "INTERNAL_ERROR",
 ];
 
-/** A selectable microphone input (D-49 device handling). */
+/** A selectable microphone input. */
 export interface MicrophoneInfo {
   deviceId: string;
   label: string;

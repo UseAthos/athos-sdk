@@ -1,7 +1,7 @@
 import type { AthosErrorCode } from "./types";
 
 /**
- * An SDK error carrying an Athos-domain code (D-38). Consumers branch on `code`;
+ * An SDK error carrying an Athos error code. Branch on `code`;
  * `message` is human-readable and NOT machine-parsable.
  */
 export class AthosRoleplayError extends Error {

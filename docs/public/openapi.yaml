@@ -302,7 +302,9 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     ServiceUnavailable:
-      description: Temporarily unable to serve the request; retry shortly.
+      description: >-
+        Temporarily unable to serve the request. Transient, but the attempt consumes the session
+        token — mint a new one instead of replaying the same request.
       headers:
         X-Athos-Request-Id:
           $ref: "#/components/headers/RequestId"
@@ -315,7 +317,7 @@ components:
               value:
                 error:
                   code: "SERVICE_UNAVAILABLE"
-                  message: "No persona is available for this drill right now. Retry shortly."
+                  message: "No persona is available for this drill right now. Mint a new session token and try again."
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     NotFound:
       description: No such call for this tenant.
@@ -418,7 +420,10 @@ components:
           type: object
           description: >-
             Best-effort persona filters. A filter that matches no persona is dropped and an
-            unfiltered persona is served; a filter never fails the call.
+            unfiltered persona is served, so a filter never fails the call. Only a drill with no
+            available persona at all fails, as `503 SERVICE_UNAVAILABLE` — a transient condition,
+            but the attempt consumes the session token, so recovering means minting a new session
+            token rather than replaying the same request.
           properties:
             state:
               type: string

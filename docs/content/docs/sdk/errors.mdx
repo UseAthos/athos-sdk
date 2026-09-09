@@ -52,7 +52,7 @@ channel:
 | `INVALID_REQUEST` | The request was invalid (e.g. blank `drillKey`). | Fix the `create()` options. |
 | `TENANT_INACTIVE` | Your Athos tenant is inactive. | Contact Athos. |
 | `TENANT_QUOTA_EXCEEDED` | Your tenant exceeded its usage quota. | Contact Athos. |
-| `SERVICE_UNAVAILABLE` | Athos is temporarily unavailable. | Retry shortly. |
+| `SERVICE_UNAVAILABLE` | Athos is temporarily unavailable. | Mint a new token and start a new call — the token is spent. |
 | `INTERNAL_ERROR` | An unexpected error. | Retry; if it persists, contact Athos with the message. |
 
 <Callout type="info">

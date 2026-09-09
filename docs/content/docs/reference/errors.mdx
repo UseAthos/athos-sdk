@@ -33,7 +33,7 @@ The `requestId` matches the `X-Athos-Request-Id` response header — quote it in
 | `TENANT_INACTIVE` | 403 | Your tenant is inactive. |
 | `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant exceeded its usage quota. |
 | `CALL_NOT_FOUND` | 404 | No such call for your tenant (also returned for another tenant's call). |
-| `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable; retry. |
+| `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable. Transient, but see the note below before retrying. |
 | `INTERNAL_ERROR` | 500 | An unexpected error. Retry; if it persists, contact Athos with the `requestId`. |
 
 ## Which codes you'll see where
@@ -42,6 +42,10 @@ The `requestId` matches the `X-Athos-Request-Id` response header — quote it in
   `IP_NOT_ALLOWED`.
 - **`POST /roleplay/session`** (SDK redeem): `INVALID_REQUEST`, `DRILL_NOT_FOUND`, `INVALID_TOKEN`,
   `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
-  drill right now — retry). These surface through the SDK's [`error` event](/sdk/errors).
+  drill right now). These surface through the SDK's [`error` event](/sdk/errors).
+
+  A `SERVICE_UNAVAILABLE` here is transient, but the session token is **consumed by the attempt**:
+  replaying the identical request returns `TOKEN_ALREADY_USED`, even once the drill is available
+  again. Recover by minting a **new** session token and starting a new call.
 - **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST`, `INVALID_API_KEY`,
   `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).
