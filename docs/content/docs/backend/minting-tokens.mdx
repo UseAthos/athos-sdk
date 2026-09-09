@@ -116,5 +116,11 @@ def athos_token():
 | 401 | `INVALID_API_KEY` | Bad or missing API key. |
 | 401 | `API_KEY_REVOKED` | The key was revoked — rotate. |
 | 403 | `TENANT_INACTIVE` | Your tenant is inactive. |
+| 403 | `TENANT_QUOTA_EXCEEDED` | Your tenant's monthly usage allowance is spent. |
+
+Minting can fail with `403 TENANT_QUOTA_EXCEEDED` when your tenant's monthly allowance is spent. No
+token is issued, and retrying will not help — the allowance lifts at the start of the next calendar
+month. Surface it to the rep as "practice is unavailable this month" rather than as a retryable
+error, and contact your Athos representative to raise it.
 
 Full envelope and list: [error reference](/reference/errors).

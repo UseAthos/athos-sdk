@@ -74,7 +74,18 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          description: >-
+            Authenticated but not permitted: the tenant is inactive (`TENANT_INACTIVE`), the
+            caller's IP is not allowed (`IP_NOT_ALLOWED`), or the tenant's monthly usage allowance
+            is spent (`TENANT_QUOTA_EXCEEDED`). The quota case issues no token and is not
+            retryable — it lifts at the start of the next calendar month.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /roleplay/session:
     post:
