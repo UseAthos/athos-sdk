@@ -373,11 +373,12 @@ components:
 
     CallSource:
       type: string
-      enum: [roleplay]
+      enum: [roleplay, ingestion]
       description: >
-        The call source. Always `roleplay` (a practice call run through the SDK) in v1. Scoring of real
-        production calls (`ingestion`) is coming soon; `source` ships on every call so it won't be a
-        breaking addition. Branch on it and default to `roleplay`.
+        The call source. Today every call Athos produces is `roleplay` (a practice call run through the
+        SDK). `ingestion` — scoring of real production calls — is coming, and is listed here so a
+        generated client never rejects a value this API can emit. Branch on it and default to
+        `roleplay`.
 
     MintSessionRequest:
       type: object
@@ -508,10 +509,15 @@ components:
               $ref: "#/components/schemas/Score"
             audioUrl:
               type: [string, "null"]
-              description: Stored recording URL, served as-is. `null` for roleplay until egress lands.
+              description: >
+                A short-lived signed URL for the call recording, valid for about an hour. Fetch the
+                call again for a fresh one; never store or share it. `null` when the call has no
+                recording (calls practiced before recording was enabled).
             audioUrlExpiresAt:
               type: [string, "null"]
-              description: Reserved; always null in v1 (the URL is plain, not signed).
+              format: date-time
+              description: >
+                When `audioUrl` stops working, ISO 8601. `null` when `audioUrl` is not a signed URL.
             waveform:
               description: Reserved; null in v1.
               type: [object, "null"]
@@ -527,10 +533,11 @@ components:
       additionalProperties: true
       required: [overallScore, summary, feedback]
       description: |
-        The scored result of a roleplay call. **Richer scoring (per-skill dimensions and a compliance
-        scorecard) is coming soon and will be additive** — new optional keys, so reading these three
-        fields stays forward-compatible. `additionalProperties` is `true` for that reason; don't assume
-        these are the only keys.
+        The scored result of a roleplay call. `overallScore`, `summary` and `feedback` are always
+        present; `complianceScorecard` is optional. **Richer scoring (per-skill dimensions) is coming
+        and will be additive** — new optional keys, so reading the fields you know stays
+        forward-compatible. `additionalProperties` is `true` for that reason; don't assume these are
+        the only keys.
       properties:
         overallScore:
           type: number
@@ -541,10 +548,25 @@ components:
         feedback:
           type: string
           description: Coaching feedback for the rep.
+        complianceScorecard:
+          type: object
+          additionalProperties: true
+          description: >
+            The compliance scorecard for the call, section by section. **Optional** — present only on
+            Medicare Advantage drills, and only when the call ran long enough to assess (roughly five
+            minutes). The key is absent, not null, when there is none, so check for its presence
+            rather than assuming it. Section contents are graded content and may gain items over
+            time; only `totalScore` is a fixed field.
+          properties:
+            totalScore:
+              type: number
+              description: The call's compliance total (higher is better).
       example:
         overallScore: 82
         summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."
         feedback: "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+        complianceScorecard:
+          totalScore: 74
 
     ListCallsResponse:
       type: object

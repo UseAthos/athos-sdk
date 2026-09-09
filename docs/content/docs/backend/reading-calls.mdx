@@ -16,7 +16,7 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 | --- | --- | --- |
 | `from` | ✅ | Lower bound (ISO 8601). |
 | `to` | | Upper bound (ISO 8601). |
-| `source` | | Filter by source. Always `roleplay` in v1. |
+| `source` | | Filter by source. Every call is `roleplay` today. |
 | `externalUserId` | | Filter to one rep. |
 | `externalAgencyId` | | Filter to one agency (a label, never an auth boundary). |
 | `limit` | | Page size, default `50`, max `100`. |
@@ -134,30 +134,56 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
   "score": {
     "overallScore": 82,
     "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
-    "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+    "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan.",
+    "complianceScorecard": { "totalScore": 74, "…": "section-by-section detail" }
   },
-  "audioUrl": null,
-  "audioUrlExpiresAt": null,
+  "audioUrl": "https://…/athos_call_GZ1DjOkZv_VEPoE-CJ8mp.ogg?X-Amz-Expires=3600&X-Amz-Signature=…",
+  "audioUrlExpiresAt": "2026-06-05T15:40:54.005Z",
   "waveform": null,
   "createdAt": "2026-06-05T14:39:45.000Z",
   "updatedAt": "2026-06-05T14:40:54.100Z"
 }
 ```
 
+## Recording playback
+
+`audioUrl` is a **short-lived signed URL** — it plays for about an hour and then stops working.
+`audioUrlExpiresAt` tells you exactly when. Use it directly in an `<audio>` element or a download
+link, but **do not store it** in your database and do not email or embed it anywhere long-lived: when
+you need it again, fetch the call again and you get a fresh one. A call with no recording (practised
+before recording was enabled) returns `null` for both fields.
+
 ## The `score` object
 
-For a **roleplay** call, `score` has three fields:
+For a **roleplay** call, `score` always has three fields, plus one optional:
 
 | Field | Type | What it is |
 | --- | --- | --- |
 | `overallScore` | number | Overall call performance, **0–100** (higher is better). |
 | `summary` | string | A short natural-language summary of the call. |
 | `feedback` | string | Coaching feedback for the rep. |
+| `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, with a numeric `totalScore`. |
 
 ```json
 {
   "overallScore": 82,
   "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
-  "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+  "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan.",
+  "complianceScorecard": {
+    "totalScore": 74,
+    "…": "section-by-section detail"
+  }
 }
 ```
+
+<Callout type="info">
+  **`complianceScorecard` is optional — check for it, don't assume it.** It appears on Medicare
+  Advantage drills only, and only when the call ran long enough to assess (roughly five minutes); a
+  short MA call and every Final Expense call simply omit the key. It is *absent*, not `null`, so
+  `if ('complianceScorecard' in call.score)` (or a truthiness check) is the right guard. Its inner
+  sections are graded content and may gain items over time — read `totalScore` and treat the rest as
+  display detail.
+</Callout>
+
+More scoring detail (per-skill dimensions) is coming, and will arrive the same way: as new optional
+keys on `score`. Read the fields you know and ignore the rest.
