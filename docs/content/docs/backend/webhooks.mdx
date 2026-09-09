@@ -88,7 +88,9 @@ Three consequences worth designing for:
   therefore the *only* signal that the attempt happened. If you need a record of every attempt,
   record it when you mint the session token rather than expecting to read it back from Athos.
 - **There is no score to fetch.** Don't call `GET /v1/calls/:callId` on a `success: false` event.
-- **A failed call is not billed.** It consumes none of your usage.
+- **A failed call is not billed, but it does count toward your allowance.** It costs nothing on
+  your invoice. It still counts against your monthly usage allowance (the one
+  `TENANT_QUOTA_EXCEEDED` reports), because the call itself really did run.
 
 ## Verifying the signature
 
