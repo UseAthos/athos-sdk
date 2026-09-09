@@ -11,11 +11,12 @@ A **drill** is the scenario your rep practices. You pass its key as `drillKey` t
 | `drillKey` | Scenario |
 | --- | --- |
 | `ma-full-sale` | **Medicare Advantage — full enrollment.** Practice a complete MA sale, intro to close. |
+| `fe-full-sale` | **Final Expense — full sale.** Practice a complete final-expense sale, intro to close. |
 
 <Callout type="info">
-  **More drills coming soon** — Final Expense, Hospital Indemnity, ACA/Under-65, objection handling,
-  and SEP hunting are on the way. The catalog is **append-only** (keys are never renamed or removed),
-  and newly added keys work without an SDK upgrade.
+  **More drills coming soon** — Hospital Indemnity, ACA/Under-65, objection handling, and SEP hunting
+  are on the way. The catalog is **append-only** (keys are never renamed or removed), and newly added
+  keys work without an SDK upgrade.
 </Callout>
 
 ### Typed keys in the SDK (opt-in)
@@ -27,8 +28,8 @@ keys are static, or render a scenario picker from the runtime list:
 ```ts
 import { ATHOS_DRILL_KEYS, type AthosDrillKey } from '@useathos/sdk';
 
-ATHOS_DRILL_KEYS.forEach((key) => addOption(key)); // runtime list
-const drillKey: AthosDrillKey = 'ma-full-sale';    // opt-in compile-time check
+ATHOS_DRILL_KEYS.forEach((key) => addOption(key)); // ['ma-full-sale', 'fe-full-sale']
+const drillKey: AthosDrillKey = 'fe-full-sale';    // opt-in compile-time check
 ```
 
 ## Difficulty
@@ -47,12 +48,13 @@ AthosRoleplay.create({ token, drillKey: 'ma-full-sale', difficulty: 'Elite' });
 
 ## Persona filters
 
-`filters` narrows which persona is chosen. It is **best-effort** — if no persona matches, Athos falls
-back to a suitable one internally rather than failing.
+`filters` narrows which persona is chosen. It is **best-effort**: `state` is honored whenever a
+persona in that state is available for the drill, and when none is, Athos serves an unfiltered
+persona instead of failing the call.
 
 | Filter | Effect |
 | --- | --- |
-| `state` | Prefer a persona located in a given US state (e.g. `"CA"`). |
+| `state` | Prefer a persona located in a given US state (e.g. `"CA"`). Dropped when the drill has no persona in that state. |
 | `category` | Reserved for future use; accepted but not applied in v1. |
 
 ```ts
@@ -64,6 +66,8 @@ AthosRoleplay.create({
 ```
 
 <Callout type="info">
-  Filters never cause an error — at worst they're ignored. If you need hard guarantees about which
-  personas are available, talk to your Athos contact.
+  A filter never fails a call — at worst it is ignored. A drill whose persona pool is entirely
+  unavailable is a different situation: the session returns `SERVICE_UNAVAILABLE` (503), which is
+  temporary and retryable, not a filter error. If you need hard guarantees about which personas are
+  available, talk to your Athos contact.
 </Callout>

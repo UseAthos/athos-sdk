@@ -41,7 +41,7 @@ The `requestId` matches the `X-Athos-Request-Id` response header — quote it in
 - **`POST /session`** (mint): `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
   `IP_NOT_ALLOWED`.
 - **`POST /roleplay/session`** (SDK redeem): `INVALID_REQUEST`, `DRILL_NOT_FOUND`, `INVALID_TOKEN`,
-  `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`. These surface through the SDK's
-  [`error` event](/sdk/errors).
+  `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
+  drill right now — retry). These surface through the SDK's [`error` event](/sdk/errors).
 - **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST`, `INVALID_API_KEY`,
   `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).

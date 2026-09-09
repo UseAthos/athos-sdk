@@ -115,6 +115,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
   /calls:
     get:
@@ -299,6 +301,22 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    ServiceUnavailable:
+      description: Temporarily unable to serve the request; retry shortly.
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            serviceUnavailable:
+              value:
+                error:
+                  code: "SERVICE_UNAVAILABLE"
+                  message: "No persona is available for this drill right now. Retry shortly."
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     NotFound:
       description: No such call for this tenant.
       headers:
@@ -391,13 +409,16 @@ components:
         drillKey:
           type: string
           description: >-
-            The drill to practice. In v1 the only supported drill is `ma-full-sale` (Medicare
-            Advantage — full enrollment); more are coming soon. Deliberately not an enum so newly
-            added drills don't break generated clients. See the Drills reference for the catalog.
-          examples: ["ma-full-sale"]
+            The drill to practice. Two drills are available today: `ma-full-sale` (Medicare
+            Advantage — full enrollment) and `fe-full-sale` (Final Expense — full sale); more are
+            coming soon. Deliberately not an enum so newly added drills don't break generated
+            clients. See the Drills reference for the catalog.
+          examples: ["ma-full-sale", "fe-full-sale"]
         filters:
           type: object
-          description: Best-effort persona filters. If nothing matches, Athos falls back internally.
+          description: >-
+            Best-effort persona filters. A filter that matches no persona is dropped and an
+            unfiltered persona is served; a filter never fails the call.
           properties:
             state:
               type: string
