@@ -34,9 +34,9 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
       "externalAgencyId": "agency_chicago",
       "drillKey": "ma-full-sale",
       "startedAt": "2026-06-05T14:39:40.295Z",
-      "endedAt": "2026-06-05T14:40:17.536Z",
-      "durationSec": 37,
-      "scoredAt": "2026-06-05T14:40:54.005Z"
+      "endedAt": "2026-06-05T14:49:52.295Z",
+      "durationSec": 612,
+      "scoredAt": "2026-06-05T14:50:29.005Z"
     }
   ],
   "nextCursor": "eyJ0IjoxNzQ5…"
@@ -124,9 +124,9 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
   "externalAgencyId": "agency_chicago",
   "drillKey": "ma-full-sale",
   "startedAt": "2026-06-05T14:39:40.295Z",
-  "endedAt": "2026-06-05T14:40:17.536Z",
-  "durationSec": 37,
-  "scoredAt": "2026-06-05T14:40:54.005Z",
+  "endedAt": "2026-06-05T14:49:52.295Z",
+  "durationSec": 612,
+  "scoredAt": "2026-06-05T14:50:29.005Z",
   "transcript": [
     { "role": "assistant", "content": "Hey." },
     { "role": "user", "content": "Hi James, how are you?" }
@@ -138,20 +138,25 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
     "complianceScorecard": { "totalScore": 74, "…": "section-by-section detail" }
   },
   "audioUrl": "https://…/athos_call_GZ1DjOkZv_VEPoE-CJ8mp.ogg?X-Amz-Expires=3600&X-Amz-Signature=…",
-  "audioUrlExpiresAt": "2026-06-05T15:40:54.005Z",
+  "audioUrlExpiresAt": "2026-06-05T15:50:29.005Z",
   "waveform": null,
   "createdAt": "2026-06-05T14:39:45.000Z",
-  "updatedAt": "2026-06-05T14:40:54.100Z"
+  "updatedAt": "2026-06-05T14:50:29.100Z"
 }
 ```
 
 ## Recording playback
 
-`audioUrl` is a **short-lived signed URL** — it plays for about an hour and then stops working.
+**Branch on `audioUrlExpiresAt`, not on `audioUrl`.** When `audioUrlExpiresAt` is set, `audioUrl` is
+a **short-lived signed URL** — it plays for about an hour and then stops working, and
 `audioUrlExpiresAt` tells you exactly when. Use it directly in an `<audio>` element or a download
-link, but **do not store it** in your database and do not email or embed it anywhere long-lived: when
-you need it again, fetch the call again and you get a fresh one. A call with no recording (practised
-before recording was enabled) returns `null` for both fields.
+link, but **do not store it** in your database and do not email or embed it anywhere long-lived:
+when you need it again, fetch the call again and you get a fresh one.
+
+When `audioUrlExpiresAt` is `null`, the URL is not time-limited by us. Either the call carries a
+stored recording URL (older calls do), or `audioUrl` is `null` too and there is nothing to play — a
+call practised before recording was enabled, or the rare case where a recording exists but could not
+be prepared for playback, which a later request usually resolves.
 
 ## The `score` object
 

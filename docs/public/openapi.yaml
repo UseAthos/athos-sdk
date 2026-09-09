@@ -510,14 +510,21 @@ components:
             audioUrl:
               type: [string, "null"]
               description: >
-                A short-lived signed URL for the call recording, valid for about an hour. Fetch the
-                call again for a fresh one; never store or share it. `null` when the call has no
-                recording (calls practiced before recording was enabled).
+                The call recording, when there is one. `audioUrlExpiresAt` tells you which kind of
+                URL you got, and it is the field to branch on. When it is set, `audioUrl` is
+                short-lived: play it now, never store or share it, and fetch the call again for a
+                fresh one. When it is `null`, `audioUrl` is not time-limited by Athos — it is
+                either a recording URL stored with the call, or `null`, meaning there is no
+                recording you can play (calls practiced before recording was enabled, and the rare
+                case where a recording exists but could not be prepared for playback; retry the
+                request).
             audioUrlExpiresAt:
               type: [string, "null"]
               format: date-time
               description: >
-                When `audioUrl` stops working, ISO 8601. `null` when `audioUrl` is not a signed URL.
+                When `audioUrl` stops working, ISO 8601. `null` means `audioUrl` is NOT short-lived
+                — a stored URL with no Athos expiry, or no recording at all. Never assume a
+                non-null `audioUrl` comes with an expiry.
             waveform:
               description: Reserved; null in v1.
               type: [object, "null"]
