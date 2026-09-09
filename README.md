@@ -50,11 +50,11 @@ For compile-time checking and autocomplete, the available catalog is exported as
 import { ATHOS_DRILL_KEYS, type AthosDrillKey } from "@useathos/sdk";
 
 const drillKey: AthosDrillKey = "ma-full-sale"; // opt-in: typos fail to compile
-ATHOS_DRILL_KEYS; // ["ma-full-sale"]
+ATHOS_DRILL_KEYS; // ["ma-full-sale", "fe-full-sale"]
 ```
 
-`ma-full-sale` (Medicare Advantage — full enrollment) is the only drill available today; more are
-coming soon.
+Two drills are available today — `ma-full-sale` (Medicare Advantage — full enrollment) and
+`fe-full-sale` (Final Expense — full sale); more are coming soon.
 
 ## Events
 

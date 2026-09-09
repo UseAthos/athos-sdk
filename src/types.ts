@@ -4,30 +4,36 @@
 // (D-04/D-54).
 
 /**
- * The friendly drill catalog (D-44). Mirrors `FRIENDLY_DRILL_KEYS` in
- * `lib/external/drill-key-map.ts` (the server's source of truth) — a root Jest
- * test asserts the two stay identical. OPT-IN tooling only: `drillKey` stays
- * `string` so a reseller can pass a newly enabled key (or one read from their
- * own config/DB) without a package bump — unknown keys are validated
- * server-side (DRILL_NOT_FOUND). Lists the drills currently available to
- * resellers; grows as new drills are enabled.
+ * The friendly drill catalog (D-44). Mirrors `FRIENDLY_DRILL_KEYS` in the
+ * product repo's `lib/external/drill-key-map.ts` (the server's source of truth).
+ * Keeping the two in sync is a MANUAL cross-repo discipline (D-03) — each side
+ * pins its own literal list in a test, and a drill change is a paired PR.
+ * OPT-IN tooling only: `drillKey` stays `string` so a reseller can pass a newly
+ * enabled key (or one read from their own config/DB) without a package bump —
+ * unknown keys are validated server-side (DRILL_NOT_FOUND). Append-only: keys
+ * are never renamed.
  */
-export type AthosDrillKey = "ma-full-sale";
+export type AthosDrillKey = "ma-full-sale" | "fe-full-sale";
 
 /** All available drill keys as a runtime list, e.g. for rendering a scenario picker. */
-export const ATHOS_DRILL_KEYS: readonly AthosDrillKey[] = ["ma-full-sale"];
+export const ATHOS_DRILL_KEYS: readonly AthosDrillKey[] = ["ma-full-sale", "fe-full-sale"];
 
 export interface AthosRoleplayCreateOptions {
   /** JIT single-use JWT minted by the reseller backend (D-05). */
   token: string;
   /**
-   * Friendly drill key, e.g. "ma-full-sale" (D-44). REQUIRED (D-36).
+   * Friendly drill key, e.g. "ma-full-sale" or "fe-full-sale" (D-44).
+   * REQUIRED (D-36).
    * Deliberately `string`, not `AthosDrillKey` — new server-side drills must
    * work without an SDK bump. Use the exported `AthosDrillKey` type and
    * `ATHOS_DRILL_KEYS` list to opt in to compile-time checking.
    */
   drillKey: string;
-  /** Best-effort persona filters; silently falls back internally (D-36). */
+  /**
+   * Best-effort persona filters (D-36): honored when a matching persona exists,
+   * otherwise dropped and an unfiltered persona is served. A filter never fails
+   * a call; only a drill with no available persona at all does, retryably.
+   */
   filters?: { state?: string; category?: string };
   /** Persona difficulty. Defaults to "Advanced" server-side (D-36). */
   difficulty?: "Beginner" | "Advanced" | "Elite";
