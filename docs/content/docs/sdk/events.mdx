@@ -30,6 +30,14 @@ off();
   [`GET /v1/calls/:id`](/backend/reading-calls), not streamed during the call.
 </Callout>
 
+## Session length
+
+A roleplay ends automatically after **two hours**. When that happens the `ended` event fires exactly
+as it does for any other call and the call is scored normally — reaching the ceiling is not an error
+and produces no failure notification. A full-sale roleplay usually runs a few minutes, so this is a
+ceiling you are unlikely to meet; it exists so an abandoned browser tab cannot hold a session open
+indefinitely.
+
 ## Typical wiring
 
 ```ts

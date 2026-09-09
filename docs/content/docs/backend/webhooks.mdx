@@ -12,6 +12,10 @@ Give your Athos contact an **HTTPS** URL and we'll register it — there's no se
 to. You'll receive a **signing secret** (`whsec_…`), shown once; store it as a backend secret
 (`ATHOS_WHSEC`). Once it's registered, `call.scored` events start flowing to that URL.
 
+Until an endpoint is registered **and active**, no notifications are sent at all — nothing is
+queued for later delivery. Polling [`GET /v1/calls`](/backend/reading-calls) is your only signal
+before that point, so register the endpoint before you rely on webhooks in production.
+
 <Callout type="info">
   We trust the URL you give us, so double-check it. If a delivery later fails — your endpoint is
   down, returns a non-2xx, or the URL is wrong — it's recorded in our delivery logs and we'll reach
@@ -45,21 +49,46 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
 | Field | Notes |
 | --- | --- |
 | `event` | Always `"call.scored"` in v1. |
-| `success` | `true` when the call scored. `false` if scoring failed (see below). |
+| `success` | `true` when the call scored. `false` when it didn't — see [When `success` is `false`](#when-success-is-false). |
 | `callId` | Public `athos_call_…` id. Look the call up with this. |
 | `source` | Always `"roleplay"` in v1 (more sources coming soon). |
 | `externalUserId` / `externalAgencyId` | The rep / agency you minted the session with. `externalAgencyId` may be `null`. |
 | `occurredAt` | ISO 8601 timestamp of the event. |
 | `requestId` | A delivery support id — quote it to Athos if a delivery looks wrong. |
 
-On `success: false`, two extra fields appear — `reason` and `reasonMessage` — describing why scoring
-failed. There is no `score` to fetch in that case.
-
 <Callout type="info">
   The body never contains a `score` or transcript (PHI stays out of webhook channels) and never
   contains your internal routing ids. Fetch the score with
   [`GET /v1/calls/:id`](/backend/reading-calls).
 </Callout>
+
+## When `success` is `false`
+
+`success: false` means the attempt happened but Athos has no score for it. Two extra fields come
+with the event:
+
+| Field | Notes |
+| --- | --- |
+| `reason` | A stable machine code — branch on this. |
+| `reasonMessage` | A short human-readable explanation. Log it; don't parse it. |
+
+The reason codes you can receive today:
+
+| `reason` | Meaning |
+| --- | --- |
+| `SCORING_INCOMPLETE` | Athos did not finish processing the call — the rep never spoke, the call never completed, or scoring failed. |
+
+**This list is append-only.** New codes can be added without a breaking change, so branch on the
+codes you know and log anything unrecognised rather than switching exhaustively over the set.
+
+Three consequences worth designing for:
+
+- **A failed call is not retrievable.** `GET /v1/calls/:callId` answers `404 CALL_NOT_FOUND` for it,
+  and it never shows up in `GET /v1/calls` — the read API is scored-only by design. This webhook is
+  therefore the *only* signal that the attempt happened. If you need a record of every attempt,
+  record it when you mint the session token rather than expecting to read it back from Athos.
+- **There is no score to fetch.** Don't call `GET /v1/calls/:callId` on a `success: false` event.
+- **A failed call is not billed.** It consumes none of your usage.
 
 ## Verifying the signature
 
@@ -106,7 +135,9 @@ app.post('/athos/webhook', express.raw({ type: 'application/json' }), (req, res)
   const evt = JSON.parse(raw);
   if (!alreadyProcessed(req.header('X-Athos-Webhook-Id'))) {
     if (evt.success) void fetchAndStoreScore(evt.callId);
-    else logScoringFailure(evt.callId, evt.reason, evt.reasonMessage);
+    else if (evt.reason === 'SCORING_INCOMPLETE') markAttemptUnscored(evt.callId, evt.reasonMessage);
+    // The reason list is append-only — log an unrecognised code, don't throw.
+    else logUnknownFailureReason(evt.callId, evt.reason, evt.reasonMessage);
   }
 });
 ```
@@ -138,8 +169,11 @@ def athos_webhook():
     if not already_processed(request.headers.get("X-Athos-Webhook-Id")):
         if evt["success"]:
             enqueue_fetch_score(evt["callId"])     # do heavy work async
+        elif evt.get("reason") == "SCORING_INCOMPLETE":
+            mark_attempt_unscored(evt["callId"], evt.get("reasonMessage"))
         else:
-            log_scoring_failure(evt["callId"], evt.get("reason"), evt.get("reasonMessage"))
+            # The reason list is append-only — log an unrecognised code, don't raise.
+            log_unknown_failure_reason(evt["callId"], evt.get("reason"), evt.get("reasonMessage"))
     return "", 200                                 # ACK fast
 ```
 </Tab>
