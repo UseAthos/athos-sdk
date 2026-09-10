@@ -89,3 +89,20 @@ function translateMediaDeviceError(name: string): AthosRoleplayError {
       );
   }
 }
+
+/**
+ * Classify an unknown thrown value (e.g. a `DOMException` from a microphone
+ * operation) into a fault. Pure, and deliberately here rather than in the
+ * transport: the pre-connect microphone gate raises the same DOMExceptions
+ * without any transport involved, and both paths must land on the same codes.
+ */
+export function toFailure(e: unknown): TransportFailure {
+  if (e instanceof Error) {
+    // DOMExceptions from getUserMedia / device ops carry a meaningful `.name`.
+    if (e.name && e.name !== "Error" && e.name.endsWith("Error")) {
+      return { kind: "mediaDevice", name: e.name };
+    }
+    return { kind: "unknown", message: e.message };
+  }
+  return { kind: "unknown" };
+}

@@ -5,7 +5,7 @@ import { LiveKitTransport } from "./transport/livekit-transport";
 import type { Transport } from "./transport/transport";
 import { SessionStateMachine } from "./state-machine";
 import { createLogger, type Logger } from "./logger";
-import { detectBrowserSupport } from "./devices";
+import { detectBrowserSupport, requestMicrophoneAccess } from "./devices";
 import type {
   AthosEventMap,
   AthosRoleplayCreateOptions,
@@ -62,6 +62,10 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
     this.logger.log("connecting…");
     this.emitter.emit("connecting", undefined);
     try {
+      // Mic first, redeem second: the token is spent on redemption, so a rep who
+      // blocks the prompt must cost nothing and keep a usable token (see
+      // `requestMicrophoneAccess`).
+      await requestMicrophoneAccess();
       const result = await redeemSession(
         this.opts.token,
         {

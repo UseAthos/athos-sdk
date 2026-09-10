@@ -9,6 +9,7 @@ import {
   type RemoteTrack,
 } from "livekit-client";
 import {
+  toFailure,
   translateTransportError,
   type TransportFailure,
 } from "../errors";
@@ -22,18 +23,6 @@ const RECONNECT_TIMEOUT_MS = 30_000;
 function toErrorPayload(failure: TransportFailure): AthosEventMap["error"] {
   const err = translateTransportError(failure);
   return { code: err.code, message: err.message };
-}
-
-/** Classify an unknown thrown value (e.g. a DOMException) into a fault. */
-function toFailure(e: unknown): TransportFailure {
-  if (e instanceof Error) {
-    // DOMExceptions from getUserMedia / device ops carry a meaningful `.name`.
-    if (e.name && e.name !== "Error" && e.name.endsWith("Error")) {
-      return { kind: "mediaDevice", name: e.name };
-    }
-    return { kind: "unknown", message: e.message };
-  }
-  return { kind: "unknown" };
 }
 
 export class LiveKitTransport implements Transport {
@@ -110,8 +99,12 @@ export class LiveKitTransport implements Transport {
 
     // Publish + capture the rep's microphone so the persona can hear them — a
     // roleplay call is two-way. Without this the rep is silent, `userSpeaking`
-    // never fires, and mic switching has no track to act on. A permission denial
-    // / missing device fails the connect with the right MIC_* code.
+    // never fires, and mic switching has no track to act on.
+    //
+    // The session already gated on permission before redeeming, so this does not
+    // prompt and cannot strand `onReady` behind an unanswered dialog. It stays
+    // guarded for what the gate cannot cover: a device unplugged in between, or a
+    // grant revoked mid-connect — both fail the connect with the right MIC_* code.
     try {
       await room.localParticipant.setMicrophoneEnabled(true);
     } catch (e) {
