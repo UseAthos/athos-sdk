@@ -24,14 +24,14 @@ export type TransportFailure =
   | { kind: "mediaDevice"; name: string }
   /** The active microphone disappeared mid-call. */
   | { kind: "deviceRemoved" }
-  /** Auto-reconnect exceeded its deadline (D-52). */
+  /** Auto-reconnect exceeded its deadline. */
   | { kind: "reconnectTimeout" }
   /** The browser blocked audio autoplay. */
   | { kind: "audioPlaybackBlocked" }
   /** Anything unclassified. */
   | { kind: "unknown"; message?: string };
 
-/** Translate a transport-layer fault into a domain error (D-38). Pure. */
+/** Translate a transport-layer fault into an Athos domain error. Pure. */
 export function translateTransportError(
   failure: TransportFailure,
 ): AthosRoleplayError {

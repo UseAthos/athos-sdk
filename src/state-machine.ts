@@ -1,6 +1,6 @@
 // Pure session lifecycle state machine. No transport, no DOM, no vendor import —
-// so every transition (including the double-connect guard, D-55, and the
-// reconnect path, D-52) is exercisable in a headless unit test.
+// so every transition (including the double-connect guard and the auto-reconnect
+// path) is exercisable in a headless unit test.
 
 export type SessionState =
   | "idle"
@@ -13,8 +13,8 @@ export type SessionEvent =
   | "CONNECT" // consumer called connect()
   | "CONNECTED" // transport reported the session is live
   | "CONNECT_FAILED" // connect() failed before any live session existed
-  | "RECONNECTING" // transient drop, auto-recovering (D-52)
-  | "RECONNECTED" // recovered (D-52)
+  | "RECONNECTING" // transient drop, auto-recovering
+  | "RECONNECTED" // recovered from a transient drop
   | "ENDED" // the call ended (clean leave or fatal error)
   | "DISCONNECT"; // consumer called disconnect()
 
@@ -52,7 +52,7 @@ export class SessionStateMachine {
   /**
    * True only when a fresh `connect()` is permitted. A second connect() while
    * connecting/connected/reconnecting is rejected as SESSION_ALREADY_CONNECTED
-   * by the caller (D-55).
+   * by the caller.
    */
   canConnect(): boolean {
     return this._state === "idle";

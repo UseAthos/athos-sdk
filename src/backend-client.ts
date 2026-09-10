@@ -12,7 +12,7 @@ export interface RedeemSessionBody {
 }
 
 /**
- * The redemption response contract (D-36). `connectionTicket` + `connectionUrl`
+ * The redemption response contract. `connectionTicket` + `connectionUrl`
  * are opaque to the consumer — they carry the (hidden) voice transport. No
  * LiveKit noun appears here.
  */
@@ -42,8 +42,9 @@ export async function redeemSession(
 
   if (!res.ok) {
     // Surface the external error envelope { error: { code, message, requestId } }.
-    // The server is contractually within the D-38 taxonomy, so the code is cast
-    // to AthosErrorCode; an unrecognized code is still surfaced verbatim.
+    // The server is contractually within the shared Athos error taxonomy, so
+    // the code is cast to AthosErrorCode; an unrecognized code is still
+    // surfaced verbatim.
     let code: AthosErrorCode = "INTERNAL_ERROR";
     let message = `Roleplay session request failed (${res.status})`;
     try {

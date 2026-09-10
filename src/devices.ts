@@ -25,7 +25,8 @@ export function detectBrowserSupport(userAgent: string): BrowserSupport {
   const isSafari = /Safari/i.test(ua) && !isChromium && !isFirefox;
   if (isSafari) return { supported: false, reason: "safari" };
   if (isChromium || isFirefox) return { supported: true };
-  // Default-deny: D-49 is an allowlist (Chromium-family + Firefox only).
+  // Default-deny: browser support is an allowlist (Chromium-family + Firefox
+  // only), so an unrecognized UA is treated as unsupported.
   return { supported: false, reason: "unknown" };
 }
 

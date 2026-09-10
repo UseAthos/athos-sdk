@@ -17,7 +17,7 @@ const log = (m: string) => {
   ATHOS_ERROR_CODES,
 };
 
-// Show the browser-support verdict on load (D-49).
+// Show the browser-support verdict on load.
 const supportEl = document.getElementById("support") as HTMLParagraphElement;
 const support = detectBrowserSupport(navigator.userAgent);
 supportEl.dataset.supported = String(support.supported);
@@ -33,8 +33,8 @@ document.getElementById("connect")!.addEventListener("click", () => {
     return;
   }
 
-  // create() is synchronous — register handlers BEFORE connect() (D-05). It also
-  // throws BROWSER_NOT_SUPPORTED synchronously on Safari / mobile (D-49).
+  // create() is synchronous — register handlers BEFORE connect(). It also
+  // throws BROWSER_NOT_SUPPORTED synchronously on Safari / mobile.
   try {
     session = AthosRoleplay.create({
       token,

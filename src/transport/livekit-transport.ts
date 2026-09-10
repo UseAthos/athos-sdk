@@ -16,7 +16,7 @@ import {
 import type { AthosEventMap, MicrophoneInfo } from "../types";
 import type { ConnectParams, Transport, TransportCallbacks } from "./transport";
 
-// Hard-fail deadline for auto-reconnect before we surface NETWORK_LOST (D-52).
+// Hard-fail deadline for auto-reconnect before we surface NETWORK_LOST.
 const RECONNECT_TIMEOUT_MS = 30_000;
 
 /** Build the public `error` payload from a transport-layer fault. */
@@ -40,7 +40,8 @@ export class LiveKitTransport implements Transport {
     const room = new Room();
     this.room = room;
 
-    // Agent audio → auto-create + manage an <audio> on document.body (D-51).
+    // Persona audio → auto-create + manage an <audio> element on document.body,
+    // so the consumer never has to build a player.
     room.on(RoomEvent.TrackSubscribed, (input: RemoteTrack) => {
       if (input.kind === Track.Kind.Audio) this.attachAudio(input);
     });
@@ -54,7 +55,7 @@ export class LiveKitTransport implements Transport {
       cb.onEnded({ callId: this.callId, durationSec });
     });
 
-    // Auto-reconnect lifecycle (D-52): emit reconnecting/reconnected; if recovery
+    // Auto-reconnect lifecycle: emit reconnecting/reconnected; if recovery
     // exceeds the deadline, surface NETWORK_LOST and tear the session down.
     room.on(RoomEvent.Reconnecting, () => {
       cb.onReconnecting();
