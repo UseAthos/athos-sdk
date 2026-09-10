@@ -39,8 +39,9 @@ token. The browser never sees your API key. See [minting tokens](/backend/mintin
 
 ## `AthosRoleplay.create(options)`
 
-Creates a session synchronously. Throws `BROWSER_NOT_SUPPORTED` immediately on Safari / mobile (see
-[Browser support](/sdk/browser-support)).
+Creates a session synchronously. Throws `BROWSER_NOT_SUPPORTED` immediately on any environment that
+isn't desktop Chrome, Edge or Firefox — Safari, mobile, or no browser at all, so call it on the
+client only (see [Browser support](/sdk/browser-support)).
 
 <TypeTable
   type={{

@@ -106,6 +106,12 @@ def athos_token():
 
 ### Start the call (frontend)
 
+<Callout type="warn">
+  Roleplay calls run on **desktop Chrome, Edge, and Firefox only**. `create()` throws
+  `BROWSER_NOT_SUPPORTED` on anything else — including Safari, mobile, and server-side rendering — so
+  call it on the client and check first. See [Browser support](/sdk/browser-support).
+</Callout>
+
 `create()` is synchronous, so register handlers **before** `connect()` — nothing is missed.
 
 ```ts
