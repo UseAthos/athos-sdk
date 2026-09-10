@@ -180,7 +180,7 @@ app.post('/athos/webhook', express.raw({ type: 'application/json' }), (req, res)
   const evt = JSON.parse(raw);
   if (!alreadyProcessed(req.header('X-Athos-Webhook-Id'))) {
     if (evt.success) void fetchAndStoreScore(evt.callId);
-    else markAttemptUnscored(evt.callId, evt.reason, evt.reasonMessage);
+    else markAttemptUnscored(evt.callId, evt.reasonMessage);
   }
 });
 ```
