@@ -31,17 +31,35 @@ The `requestId` matches the `X-Athos-Request-Id` response header — quote it in
 | `TOKEN_ALREADY_USED` | 401 | The single-use session token was already redeemed. |
 | `IP_NOT_ALLOWED` | 403 | The caller's IP is not on the allowlist (if one is configured). |
 | `TENANT_INACTIVE` | 403 | Your tenant is inactive. |
-| `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant exceeded its usage quota. |
+| `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant's monthly usage allowance is spent. It clears at the start of the next calendar month. |
 | `CALL_NOT_FOUND` | 404 | No such call for your tenant (also returned for another tenant's call). |
-| `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable; retry. |
+| `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable. Transient, but see the note below before retrying. |
 | `INTERNAL_ERROR` | 500 | An unexpected error. Retry; if it persists, contact Athos with the `requestId`. |
 
 ## Which codes you'll see where
 
 - **`POST /session`** (mint): `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
-  `IP_NOT_ALLOWED`.
+  `IP_NOT_ALLOWED`, `TENANT_QUOTA_EXCEEDED`.
+
+  `TENANT_QUOTA_EXCEEDED` means your tenant's monthly usage allowance is spent. Retrying will not
+  clear it: it lifts at the start of the next calendar month, or when your Athos representative
+  raises the allowance.
 - **`POST /roleplay/session`** (SDK redeem): `INVALID_REQUEST`, `DRILL_NOT_FOUND`, `INVALID_TOKEN`,
-  `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`. These surface through the SDK's
-  [`error` event](/sdk/errors).
-- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST`, `INVALID_API_KEY`,
+  `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
+  drill right now). These surface through the SDK's [`error` event](/sdk/errors). Most of them
+  **spend the session token** — see [below](#a-failed-redemption-usually-spends-the-token).
+- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only), `INVALID_API_KEY`,
   `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).
+
+## A failed redemption usually spends the token
+
+The session token is single-use, and it is **consumed as the request is redeemed** — before the
+call is set up. So any failure raised after that point (`DRILL_NOT_FOUND`, `SERVICE_UNAVAILABLE`,
+`INTERNAL_ERROR`) leaves the token spent: replaying the identical request returns
+`TOKEN_ALREADY_USED`, even once the underlying condition has cleared. Recover by minting a **new**
+session token and starting a new call.
+
+Only three codes are raised *before* redemption and leave the token unspent: `INVALID_TOKEN`,
+`TOKEN_EXPIRED` and `INVALID_REQUEST`. Of those, only `INVALID_REQUEST` is worth retrying with the
+same token — a rejected or expired token will not be accepted on a second attempt either. Treat
+every other failure as having spent the token.

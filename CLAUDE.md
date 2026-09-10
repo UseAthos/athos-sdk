@@ -72,7 +72,14 @@ is CI-only and signed.
 - `src/index.ts` + `tests/public-surface.test.ts` define and guard the public API — change them
   together, on purpose.
 - **Drill-key parity is a cross-repo discipline.** `ATHOS_DRILL_KEYS` here must match the Athos
-  server's launch drill set. If the launch drills change, change **both** sides.
+  server's launch drill set (`lib/external/drill-key-map.ts` in the product repo). If the launch
+  drills change, change **both** sides in one paired PR. Each side pins its own sorted literal list
+  in a test — `tests/public-surface.test.ts` here — so the pin must be **exact**, not "contains":
+  an extra key would ship a picker offering a drill the server rejects with `DRILL_NOT_FOUND`.
+- **`src/types.ts` doc comments ARE shipped API docs.** tsup copies them verbatim into
+  `dist/index.d.ts`, so customers read them on editor hover. Keep them customer-facing: no internal
+  decision IDs (`D-xx`), no slice numbers, no product-repo paths, no internal constant names, no
+  vendor nouns. Internal rationale belongs here or in `tests/`, never in a published doc comment.
 - Any change to a request/response shape, error code, event, or drill key is a public-contract change
   → bump semver appropriately and update `docs/` (including `docs/public/openapi.yaml`) in the same PR.
 

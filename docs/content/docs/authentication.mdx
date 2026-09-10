@@ -28,7 +28,9 @@ Authorization: Bearer ath_live_xxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Rotation
 
-You make sure to support a simple zero-downtime rotation using multiple keys:
+Athos supports zero-downtime rotation with multiple keys: a tenant can hold up to **5 active
+keys** at once, so the old and the new key can serve traffic side by side while you deploy. To
+mint a sixth, revoke one first.
 
 <Steps>
 <Step>Ask Athos to **mint a new key**. Deploy it to your backend.</Step>
