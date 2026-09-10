@@ -8,28 +8,33 @@ that plays the persona's voice and appends it to the page — you don't manage p
 
 ## Permission is requested before the call starts
 
-`connect()` asks the browser for the microphone **before** it redeems the session token. That
-ordering is deliberate: a rep who denies or dismisses the prompt has **not spent the token**,
-nothing is billed, and no call is created — so a blocked prompt cannot leave a charged session that
-never starts.
+`connect()` asks the browser for the microphone **before** it redeems the session token. Denying
+*that first prompt* costs nothing: the token is not spent, no call is created, and nothing is
+billed — so a rep who blocks the mic cannot leave a charged session that never starts.
 
-To retry, build a **new session with the same token** (a session object is single-use). The
-microphone codes can also be raised *after* redemption — a mic unplugged in the moment between the
-permission check and the call going live — and from the code alone you cannot tell which happened.
-So retry the token once, and mint a fresh one only if that retry says the token is gone:
+That guarantee covers the pre-connect prompt only. The same codes can also be raised **after**
+redemption — a mic unplugged in the moment between the permission check and the call going live —
+and from the code alone you cannot tell which happened. So retry the token once, and mint a fresh
+one only if that retry says the token is gone. A session object is single-use, so each attempt
+needs a new one:
 
 ```ts
+const MIC_CODES = ['MIC_PERMISSION_DENIED', 'NO_MIC_AVAILABLE', 'MIC_DEVICE_DISCONNECTED'];
+
+// Called from your "start call" button, and again from a "try again" button.
 async function start(token: string) {
   const session = AthosRoleplay.create({ token, drillKey: 'ma-full-sale' });
   session.on('ready', showCallUI);
   try {
     await session.connect();
+    return session;
   } catch (err) {
-    if (err.code === 'MIC_PERMISSION_DENIED' || err.code === 'NO_MIC_AVAILABLE') {
-      await showMicHelp();
-      return start(token); // the same token, on a fresh session
+    if (MIC_CODES.includes(err.code)) {
+      // Don't loop: getUserMedia won't behave differently until the rep acts.
+      showMicHelp({ retryWith: token });
+    } else if (err.code === 'TOKEN_ALREADY_USED') {
+      showMicHelp({ retryWith: await mintToken() }); // the failure came later
     }
-    if (err.code === 'TOKEN_ALREADY_USED') return start(await mintToken());
     throw err;
   }
 }
@@ -44,9 +49,22 @@ async function start(token: string) {
 
 ### Cancelling while the prompt is open
 
-If the rep changes their mind, call `session.disconnect()`. The pending `connect()` settles without
-firing `ready`, the token is not redeemed, and the microphone is released. That session object is
-then spent — start the next attempt with a new one.
+If the rep changes their mind, call `session.disconnect()`. Nothing further starts: the token is not
+redeemed, no call is created, the microphone is released, and the session goes **silent** — no
+`ready`, no `error`, not even for a prompt the rep denies afterwards.
+
+Treat your own `disconnect()` call as the end of the attempt. Do **not** wait on the pending
+`connect()` promise to tell you the cancel finished — it cannot settle until the browser prompt is
+answered, which may be never:
+
+```ts
+cancelButton.onclick = () => {
+  session.disconnect();
+  clearCallUI();          // now, not in a .then() on connect()
+};
+```
+
+That session object is spent either way — start the next attempt with a new one.
 
 Your page must be served over **HTTPS** (or `localhost`). Browsers withhold microphone access
 entirely on a plain `http://` origin, which the SDK reports as `NO_MIC_AVAILABLE`.

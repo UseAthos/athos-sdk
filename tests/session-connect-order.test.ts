@@ -43,6 +43,7 @@ vi.mock("../src/transport/livekit-transport", () => ({
 }));
 
 import { AthosRoleplay } from "../src/session";
+import { AthosRoleplayError } from "../src/errors";
 
 /** getUserMedia that grants, recording the call order. */
 function grantingMic() {
@@ -223,8 +224,13 @@ describe("cancelling during the microphone prompt", () => {
     const held = new Promise<void>((res) => {
       finishRedeem = res;
     });
+    let redeemStarted!: () => void;
+    const redeeming = new Promise<void>((res) => {
+      redeemStarted = res;
+    });
     redeemSession.mockImplementationOnce(async () => {
       calls.push("redeem");
+      redeemStarted();
       await held;
       return {
         callId: "call_1",
@@ -236,13 +242,14 @@ describe("cancelling during the microphone prompt", () => {
 
     const session = AthosRoleplay.create({ token: "t", drillKey: "ma-full-sale" });
     const connecting = session.connect();
-    await Promise.resolve(); // let connect() reach the redeem
+    await redeeming; // the redeem is genuinely in flight, not merely queued
     await session.disconnect();
     finishRedeem();
     await connecting;
 
     // The token is already spent here — that is unavoidable and the sweep
     // reclaims the call. Joining on top of it is not.
+    expect(redeemSession).toHaveBeenCalledTimes(1);
     expect(transportConnect).not.toHaveBeenCalled();
   });
 
@@ -275,6 +282,60 @@ describe("cancelling during the microphone prompt", () => {
 
     // Two disconnects: the consumer's no-op one, then ours once a room existed.
     expect(transportDisconnect).toHaveBeenCalledTimes(2);
-    expect(ready).toEqual(["ready"]); // the transport had already fired it
+    // The transport raises `ready` from inside its own connect(), so it fired —
+    // but it must not reach a consumer who has torn their call UI down.
+    expect(ready).toEqual([]);
+  });
+
+  it("stays quiet when the prompt is denied after the cancel", async () => {
+    let deny!: () => void;
+    const pending = new Promise<void>((res) => {
+      deny = res;
+    });
+    stubNavigator(
+      vi.fn(async () => {
+        await pending;
+        const e = new Error("denied");
+        e.name = "NotAllowedError";
+        throw e;
+      }),
+    );
+
+    const session = AthosRoleplay.create({ token: "t", drillKey: "ma-full-sale" });
+    const errors: string[] = [];
+    session.on("error", ({ code }) => errors.push(code));
+
+    const connecting = session.connect();
+    await session.disconnect();
+    deny();
+
+    // No rejection and no error event: the consumer cancelled, so the denial is
+    // an answer to a question nobody is still asking.
+    await expect(connecting).resolves.toBeUndefined();
+    expect(errors).toEqual([]);
+  });
+
+  it("does not mistake a call that ended on its own for a cancel", async () => {
+    stubNavigator(grantingMic());
+    // What a failed mic publication looks like from here: the room reports
+    // Disconnected (so the session goes terminal) and then the join throws.
+    transportConnect.mockImplementationOnce(async (_p: unknown, cb: any) => {
+      cb.onEnded({ callId: "call_1", durationSec: 0 });
+      // Already translated — the real transport maps the DOMException itself.
+      throw new AthosRoleplayError(
+        "MIC_DEVICE_DISCONNECTED",
+        "The microphone is no longer readable.",
+      );
+    });
+
+    const session = AthosRoleplay.create({ token: "t", drillKey: "ma-full-sale" });
+    const errors: string[] = [];
+    session.on("error", ({ code }) => errors.push(code));
+
+    // Terminal, but nobody cancelled — the partner must still hear about it.
+    await expect(session.connect()).rejects.toMatchObject({
+      code: "MIC_DEVICE_DISCONNECTED",
+    });
+    expect(errors).toEqual(["MIC_DEVICE_DISCONNECTED"]);
   });
 });
