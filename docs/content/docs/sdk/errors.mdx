@@ -39,9 +39,10 @@ These originate in the browser at runtime:
 | `SESSION_ALREADY_CONNECTED` | `connect()` was called twice on the same session. |
 
 <Callout type="info">
-  **The microphone codes are raised before the token is redeemed.** `connect()` asks for the mic
-  first, so a denied or missing microphone leaves the token **unspent** — recover by fixing the
-  device and retrying with the same token. See
+  **`connect()` asks for the microphone before it redeems the token**, so a denied or missing
+  microphone normally leaves the token **unspent**. Recover by fixing the device and retrying the
+  same token on a *new* session; if that returns `TOKEN_ALREADY_USED`, the failure came from later
+  in the call setup — mint a fresh token. See
   [Microphone & audio](/sdk/microphone-and-audio#permission-is-requested-before-the-call-starts).
 </Callout>
 

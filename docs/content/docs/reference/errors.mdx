@@ -59,9 +59,10 @@ call is set up. So any failure raised after that point (`DRILL_NOT_FOUND`, `SERV
 `TOKEN_ALREADY_USED`, even once the underlying condition has cleared. Recover by minting a **new**
 session token and starting a new call.
 
-The SDK's microphone codes (`MIC_PERMISSION_DENIED`, `NO_MIC_AVAILABLE`,
-`MIC_DEVICE_DISCONNECTED`) never reach this endpoint at all: `connect()` gates on the microphone
-before it redeems, so they leave the token unspent and the same token can be retried.
+The SDK gates on the microphone *before* it redeems, so a refused or missing microphone usually
+fails without ever reaching this endpoint and leaves the token unspent. The same codes can also come
+from later in the call setup, though, so treat a microphone failure as "retry this token once, mint
+a new one if it comes back `TOKEN_ALREADY_USED`".
 
 Of the codes this endpoint itself returns, only three are raised *before* redemption and leave the
 token unspent: `INVALID_TOKEN`, `TOKEN_EXPIRED` and `INVALID_REQUEST`. Of those, only `INVALID_REQUEST` is worth retrying with the

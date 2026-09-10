@@ -101,10 +101,12 @@ export class LiveKitTransport implements Transport {
     // roleplay call is two-way. Without this the rep is silent, `userSpeaking`
     // never fires, and mic switching has no track to act on.
     //
-    // The session already gated on permission before redeeming, so this does not
-    // prompt and cannot strand `onReady` behind an unanswered dialog. It stays
-    // guarded for what the gate cannot cover: a device unplugged in between, or a
-    // grant revoked mid-connect — both fail the connect with the right MIC_* code.
+    // The session gated on permission before redeeming, so in the ordinary case
+    // this re-acquires silently rather than stranding `onReady` behind a dialog.
+    // It stays guarded for what the gate cannot cover: a device unplugged in
+    // between, or a temporary grant that lapsed — the first fails the connect
+    // with the right MIC_* code, the second can re-prompt, and an unanswered
+    // re-prompt leaves this pending on a call that is already billable.
     try {
       await room.localParticipant.setMicrophoneEnabled(true);
     } catch (e) {

@@ -9,20 +9,28 @@ that plays the persona's voice and appends it to the page — you don't manage p
 ## Permission is requested before the call starts
 
 `connect()` asks the browser for the microphone **before** it redeems the session token. That
-ordering is deliberate:
+ordering is deliberate: a rep who denies or dismisses the prompt has **not spent the token**,
+nothing is billed, and no call is created — so a blocked prompt cannot leave a charged session that
+never starts.
 
-- A rep who denies or dismisses the prompt has **not spent the token**. Handle the error, then call
-  `connect()` again on a new session with the *same* token once they have allowed access.
-- Nothing is billed and no call is created, so a blocked prompt cannot produce a silent, charged
-  session that never starts.
+To retry, build a **new session with the same token** (a session object is single-use). The
+microphone codes can also be raised *after* redemption — a mic unplugged in the moment between the
+permission check and the call going live — and from the code alone you cannot tell which happened.
+So retry the token once, and mint a fresh one only if that retry says the token is gone:
 
 ```ts
-try {
-  await session.connect();
-} catch (err) {
-  if (err.code === 'MIC_PERMISSION_DENIED') {
-    // Ask the rep to allow the mic, then retry with the same token.
-    showMicHelp();
+async function start(token: string) {
+  const session = AthosRoleplay.create({ token, drillKey: 'ma-full-sale' });
+  session.on('ready', showCallUI);
+  try {
+    await session.connect();
+  } catch (err) {
+    if (err.code === 'MIC_PERMISSION_DENIED' || err.code === 'NO_MIC_AVAILABLE') {
+      await showMicHelp();
+      return start(token); // the same token, on a fresh session
+    }
+    if (err.code === 'TOKEN_ALREADY_USED') return start(await mintToken());
+    throw err;
   }
 }
 ```
@@ -33,6 +41,12 @@ try {
   answer or dismiss it. Show your own "waiting for microphone access" state on `connecting`; don't
   wait on `ready` to decide the call has started.
 </Callout>
+
+### Cancelling while the prompt is open
+
+If the rep changes their mind, call `session.disconnect()`. The pending `connect()` settles without
+firing `ready`, the token is not redeemed, and the microphone is released. That session object is
+then spent — start the next attempt with a new one.
 
 Your page must be served over **HTTPS** (or `localhost`). Browsers withhold microphone access
 entirely on a plain `http://` origin, which the SDK reports as `NO_MIC_AVAILABLE`.
@@ -93,7 +107,7 @@ a terminal error and offer to restart.
 | `MIC_DEVICE_DISCONNECTED` | The active mic was unplugged, or is held by another app. |
 | `NO_MIC_AVAILABLE` | No microphone is available, or the page is not on HTTPS. |
 
-When one of these is raised from `connect()`, the token is unspent and the same one can be retried.
-Raised mid-call, the session is already live and ends as usual.
+Raised from `connect()`, the token is *usually* unspent — always so for a permission the rep never
+granted, which is the common case. Raised mid-call, the session is already live and ends as usual.
 
 See the full list in [Error codes](/sdk/errors).

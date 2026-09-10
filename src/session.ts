@@ -66,6 +66,11 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
       // blocks the prompt must cost nothing and keep a usable token (see
       // `requestMicrophoneAccess`).
       await requestMicrophoneAccess();
+      // The gate waits on a human answering a browser dialog, so this window is
+      // unbounded — long enough for the consumer to cancel. Resuming blindly
+      // would spend the token and open the mic on a call whose UI is already
+      // gone, so every await below re-checks that the session is still wanted.
+      if (this.cancelled()) return;
       const result = await redeemSession(
         this.opts.token,
         {
@@ -75,6 +80,7 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
         },
         this.opts.apiBase,
       );
+      if (this.cancelled()) return;
       this.callId = result.callId;
       await this.transport.connect(
         {
@@ -113,6 +119,12 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
             this.emitter.emit("userSpeaking", payload),
         },
       );
+      if (this.cancelled()) {
+        // The session went live during the last await; tear it back down rather
+        // than leave a joined room capturing a cancelled rep's microphone.
+        await this.transport.disconnect().catch(() => {});
+        return;
+      }
       this.machine.apply("CONNECTED");
     } catch (e) {
       // Failed connect → idle so a genuine retry is allowed (no live session exists).
@@ -128,6 +140,14 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
       this.emitter.emit("error", { code: err.code, message: err.message });
       throw err;
     }
+  }
+
+  /**
+   * True once `disconnect()` (or a completed call) has made the session
+   * terminal. `ended` has no outgoing transitions, so this cannot flip back.
+   */
+  private cancelled(): boolean {
+    return this.machine.state === "ended";
   }
 
   async disconnect(): Promise<void> {

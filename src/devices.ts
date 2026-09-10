@@ -43,8 +43,11 @@ export function detectBrowserSupport(userAgent: string): BrowserSupport {
  * leaves the same token usable on a retry.
  *
  * The tracks are stopped immediately so the transport re-acquires the device
- * cleanly once the session is live; a permission already granted does not
- * re-prompt.
+ * cleanly once the session is live. A grant normally satisfies that second
+ * acquisition without prompting again, but it is not a guarantee: browsers issue
+ * temporary grants that expire (Firefox's un-remembered grant, Chrome's one-time
+ * permission), so a lapse between here and publication can still raise a prompt
+ * the rep has already answered once. Narrow, and far from a first-run refusal.
  */
 export async function requestMicrophoneAccess(): Promise<void> {
   const media =
