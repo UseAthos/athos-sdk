@@ -39,9 +39,8 @@ token. The browser never sees your API key. See [minting tokens](/backend/mintin
 
 ## `AthosRoleplay.create(options)`
 
-Creates a session synchronously. Throws `BROWSER_NOT_SUPPORTED` immediately on any environment that
-isn't desktop Chrome, Edge or Firefox — Safari, mobile, or no browser at all, so call it on the
-client only (see [Browser support](/sdk/browser-support)).
+Creates a session synchronously. On an unsupported environment it throws `BROWSER_NOT_SUPPORTED`
+straight away, so call it on the client only (see [Browser support](/sdk/browser-support)).
 
 <TypeTable
   type={{
@@ -80,13 +79,34 @@ client only (see [Browser support](/sdk/browser-support)).
 | Method | Description |
 | --- | --- |
 | `connect()` | Redeem the token and join the call. Returns a `Promise<void>`. |
-| `disconnect()` | Cleanly leave the call. |
+| `disconnect()` | End the call and leave cleanly. See [How a call ends](#how-a-call-ends). |
 | `on(event, cb)` | Subscribe to an [event](/sdk/events). Returns an unsubscribe function. |
 | `off(event, cb)` | Unsubscribe. |
 | `listMicrophones()` | Enumerate available mics. See [Microphone & audio](/sdk/microphone-and-audio). |
 | `setMicrophone(deviceId)` | Switch mic mid-call without dropping. |
 | `mute()` / `unmute()` | Mute / unmute the local mic. |
 | `resumeAudio()` | Resume playback after `AUDIO_PLAYBACK_BLOCKED` (call from a user gesture). |
+
+## How a call ends
+
+**The AI persona never hangs up.** It has no way to decide the conversation is finished — that is
+deliberate, because whether a rep's call is over is your product's decision, not a model's. So a
+call ends in exactly three ways:
+
+1. **You call `session.disconnect()`** — the normal ending. Wire it to an "End call" button.
+2. **The two-hour ceiling** — a backstop for abandoned calls, not a normal ending. A full-sale
+   roleplay usually runs a few minutes.
+3. **The network drops** and does not recover within 30 seconds (`NETWORK_LOST`).
+
+All three fire the [`ended` event](/sdk/events) with the public `callId`, including the
+`disconnect()` you called yourself. That event is how your UI learns the call is over, and the
+`callId` is what ties it to the score that arrives later.
+
+<Callout type="warn">
+  **Ship the "End call" button.** Without one, a rep who walks away leaves the call running until
+  the two-hour ceiling: you are billed for the full two hours and it counts against your monthly
+  usage allowance. `disconnect()` is the only way to end a call early.
+</Callout>
 
 ## What's next
 

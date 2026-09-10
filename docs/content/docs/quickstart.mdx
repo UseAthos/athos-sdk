@@ -50,8 +50,6 @@ npm install @useathos/sdk
 Your backend exchanges its API key for a short-lived, single-use **session token** scoped to one
 rep. Expose this as your own endpoint (e.g. `POST /athos/token`) that your frontend can call.
 
-<Tabs items={['curl', 'Node', 'Python']}>
-<Tab value="curl">
 ```bash
 curl -X POST https://app.useathos.ai/api/external/v1/session \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
@@ -59,41 +57,9 @@ curl -X POST https://app.useathos.ai/api/external/v1/session \
   -d '{"externalUserId":"rep_8842","externalAgencyId":"agency_chicago"}'
 # → { "token": "eyJhbGci…", "expiresAt": "2026-06-05T18:05:00.000Z" }
 ```
-</Tab>
-<Tab value="Node">
-```ts
-// POST /athos/token  (your endpoint)
-app.post('/athos/token', async (req, res) => {
-  const r = await fetch('https://app.useathos.ai/api/external/v1/session', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.ATHOS_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ externalUserId: req.user.id, externalAgencyId: req.user.agencyId }),
-  });
-  if (!r.ok) return res.status(502).json(await r.json());
-  res.json(await r.json()); // { token, expiresAt }
-});
-```
-</Tab>
-<Tab value="Python">
-```python
-# POST /athos/token  (your endpoint)
-import os, requests
 
-@app.post("/athos/token")
-def athos_token():
-    r = requests.post(
-        "https://app.useathos.ai/api/external/v1/session",
-        headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
-        json={"externalUserId": current_user.id, "externalAgencyId": current_user.agency_id},
-        timeout=10,
-    )
-    return r.json(), r.status_code   # { "token": ..., "expiresAt": ... }
-```
-</Tab>
-</Tabs>
+Node and Python versions of that endpoint are on
+[Minting session tokens](/backend/minting-tokens#implement-your-token-endpoint).
 
 <Callout type="warn">
   Mint the token **at the moment the rep clicks "start practice"**, not on page load. It's
@@ -107,9 +73,9 @@ def athos_token():
 ### Start the call (frontend)
 
 <Callout type="warn">
-  Roleplay calls run on **desktop Chrome, Edge, and Firefox only**. `create()` throws
-  `BROWSER_NOT_SUPPORTED` on anything else — including Safari, mobile, and server-side rendering — so
-  call it on the client and check first. See [Browser support](/sdk/browser-support).
+  Roleplay calls run on **desktop Chrome, Edge, and Firefox only** — `create()` throws
+  `BROWSER_NOT_SUPPORTED` on anything else, so call it on the client and check first. See
+  [Browser support](/sdk/browser-support).
 </Callout>
 
 `create()` is synchronous, so register handlers **before** `connect()` — nothing is missed.
@@ -126,7 +92,16 @@ session.on('ended', ({ callId, durationSec }) => console.log('ended', callId, du
 session.on('error', ({ code, message }) => console.error(code, message));
 
 await session.connect(); // joins the call; the AI persona starts speaking
+
+// The persona never hangs up — your UI has to end the call.
+endCallButton.onclick = () => session.disconnect();
 ```
+
+<Callout type="warn">
+  **The persona never hangs up — build an "End call" button.** A call runs until you call
+  `disconnect()`, until the two-hour ceiling, or until the network drops, so an abandoned tab runs
+  (and bills) the full two hours. See [How a call ends](/sdk#how-a-call-ends).
+</Callout>
 
 That's the whole frontend. See the [SDK guide](/sdk) for events, microphone control, and
 browser detection.
@@ -137,8 +112,7 @@ browser detection.
 
 ### Receive the event webhook (backend)
 
-When the call finishes scoring, Athos POSTs a small, signed payload to your registered URL. Verify
-the signature over the **raw request body**, then fetch the detail.
+When the call finishes scoring, Athos POSTs a small, signed payload to your registered URL:
 
 ```json
 {
@@ -153,41 +127,13 @@ the signature over the **raw request body**, then fetch the detail.
 }
 ```
 
-```ts
-import crypto from 'node:crypto';
-import express from 'express';
-
-function verifyAthosSignature(rawBody: string, header: string | undefined, secret: string): boolean {
-  if (!header) return false;
-  const parts = Object.fromEntries(header.split(',').map((kv) => kv.split('=')));
-  const { t, v1 } = parts;
-  if (!t || !v1) return false;
-  if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // 5-min replay window
-  const expected = crypto.createHmac('sha256', secret).update(`${t}.${rawBody}`).digest('hex');
-  return v1.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(v1, 'hex'), Buffer.from(expected, 'hex'));
-}
-
-// Mount with a RAW body parser so the bytes are untouched.
-app.post('/athos/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const raw = req.body.toString('utf8');
-  if (!verifyAthosSignature(raw, req.header('X-Athos-Signature'), process.env.ATHOS_WHSEC!)) {
-    return res.sendStatus(401);
-  }
-
-  res.sendStatus(200); // ACK fast — do the work afterwards
-
-  const evt = JSON.parse(raw);
-  if (!alreadyProcessed(req.header('X-Athos-Webhook-Id'))) {
-    if (evt.success) void fetchAndStoreScore(evt.callId);
-    else markAttemptUnscored(evt.callId, evt.reasonMessage);
-  }
-});
-```
+Your handler does three things: verify the signature over the **raw request body** (parsing and
+re-serializing changes the bytes and breaks the check), answer `2xx` fast, then fetch the score
+afterwards. Copy a verifier — Node or Python — from
+[Webhooks](/backend/webhooks#verifying-the-signature).
 
 `success` is `false` when the call could not be scored — there is no score to fetch for it. Retries
-reuse the same `X-Athos-Webhook-Id`, so treat that header as your idempotency key. See
-[Webhooks](/backend/webhooks) for the full payload, retries, and a Python verifier.
+reuse the same `X-Athos-Webhook-Id`, so treat that header as your idempotency key.
 
 </Step>
 
@@ -200,8 +146,8 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
   -H "Authorization: Bearer $ATHOS_API_KEY"
 ```
 
-The response includes the diarized `transcript` and the `score` object (`overallScore`, `summary`,
-and `feedback`). See [Reading calls](/backend/reading-calls).
+The response includes the `transcript` (a list of speaker-labelled turns) and the `score` object
+(`overallScore`, `summary`, and `feedback`). See [Reading calls](/backend/reading-calls).
 
 </Step>
 

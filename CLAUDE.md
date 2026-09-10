@@ -44,24 +44,37 @@ Only `dist/` ships to npm (`files: ["dist"]`); `livekit-client` is the sole runt
 
 - **`ci.yml`** — on every push to `main` and every PR: `npm ci` → `build` → `typecheck` → `test`.
   Keep it green; it's the gate for merges.
-- **`release.yml`** — on a `v*` **tag** push: `build` → `test` → `npm publish`. Publishing is
-  **tokenless via OIDC trusted publishing** and emits a **signed provenance** badge
-  (`publishConfig.provenance: true`). The npm trusted-publisher config must match: provider
-  *GitHub Actions*, repo `UseAthos/athos-sdk`, workflow `release.yml`, environment `npm-publish`.
+- **`release.yml`** — on every push to `main`: `npm ci` → `build` → `test` → decide the bump → bump,
+  tag, push, `npm publish`. Publishing is **tokenless via OIDC trusted publishing** and emits a
+  **signed provenance** badge (`publishConfig.provenance: true`). The npm trusted-publisher config
+  must match: provider *GitHub Actions*, repo `UseAthos/athos-sdk`, workflow `release.yml`,
+  environment `npm-publish` — so the publish step has to stay in *this* file, under *that*
+  environment. Renaming either breaks publishing.
 
 ## How to cut a release ← the important part
 
-1. Land your change on `main` with `build` + `typecheck` + `test` green. If you touched the public
-   surface, update `tests/public-surface.test.ts` deliberately and the `docs/` to match.
-2. Bump the version per **semver** — this is a public customer SDK, so a breaking change to the public
-   API/contract is a **major**. The clean path also creates the tag:
-   ```bash
-   npm version patch        # or `minor` / `major` — bumps package.json, commits, tags vX.Y.Z
-   git push origin main --follow-tags
-   ```
-   (Manual equivalent: edit `version`, commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`.)
-3. The tag push fires `release.yml`, which builds, tests, and publishes `@useathos/sdk@X.Y.Z` with
-   provenance. Verify on <https://www.npmjs.com/package/@useathos/sdk>.
+**You don't — merging to `main` is the release.** `release.yml` runs on every push to `main`, and the
+Conventional Commit prefixes since the last `v*` tag decide what happens:
+
+| Commits since the last tag | Result |
+| --- | --- |
+| any `type!:` prefix, or a `BREAKING CHANGE:` footer | **major** — a break to the public contract is a major, 0.x or not |
+| `feat:` | **minor** |
+| `fix:` / `perf:` / `refactor:` | **patch** |
+| only `docs:` / `chore:` / `ci:` / `test:` / `build:` / `style:` | **no release** — the job stops, green |
+
+So the whole job is writing an honest commit message. When a release is due, the workflow runs
+`npm version <bump>` itself, pushes the version commit and the `vX.Y.Z` tag back to `main`, and
+publishes. (That push uses `GITHUB_TOKEN`, which by design cannot start another workflow run, so it
+cannot loop.) `build` and `test` run before any of it, so a broken merge can neither ship nor move
+the version.
+
+**Nobody runs `npm version` or pushes a tag by hand.** A hand-bumped version that nobody remembered
+to tag is exactly the drift this replaced. If `package.json` is ever ahead of npm anyway, the next
+merge publishes that version as-is — no bump — and tags it; normal bumping resumes after that.
+
+If you touched the public surface, still update `tests/public-surface.test.ts` and `docs/` in the
+same PR, and pick your prefix knowing it sets the version customers get.
 
 **Do not `npm publish` from your machine.** The only manual publish was the one-time `0.2.0` bootstrap
 (unsigned, just to create the package so the trusted publisher could be attached). Every release since
@@ -86,5 +99,5 @@ is CI-only and signed.
 ## Don't
 
 - Don't bundle `livekit-client`; don't name the voice transport in docs / public API / error strings.
-- Don't publish locally — tag → CI.
+- Don't publish locally, and don't bump or tag by hand — merge to `main` → CI does both.
 - Don't commit secrets. Provenance comes from CI/OIDC, never a checked-in token.
