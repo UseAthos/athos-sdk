@@ -574,11 +574,17 @@ components:
             Medicare Advantage drills, and only when the call ran long enough to assess (roughly five
             minutes). The key is absent, not null, when there is none, so check for its presence
             rather than assuming it. Section contents are graded content and may gain items over
-            time; only `totalScore` is a fixed field.
+            time; `totalScore` is the one fixed field.
           properties:
             totalScore:
               type: number
-              description: The call's compliance total (higher is better).
+              description: >
+                The call's compliance total (higher is better). **Optional, and normally present** —
+                whenever a compliance scorecard is returned this field is populated. It is omitted in
+                the rare case where the underlying total is not a usable number. Treat an absent
+                `totalScore` as **"not assessed" — never as a zero**: a fabricated `0` would be
+                indistinguishable from a genuine failing compliance score, so we omit the field
+                rather than invent one. The section detail is still valid when the total is absent.
       example:
         overallScore: 82
         summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."

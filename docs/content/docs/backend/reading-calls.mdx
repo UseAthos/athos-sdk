@@ -167,7 +167,7 @@ For a **roleplay** call, `score` always has three fields, plus one optional:
 | `overallScore` | number | Overall call performance, **0–100** (higher is better). |
 | `summary` | string | A short natural-language summary of the call. |
 | `feedback` | string | Coaching feedback for the rep. |
-| `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, with a numeric `totalScore`. |
+| `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, headed by a numeric `totalScore`. |
 
 ```json
 {
@@ -188,6 +188,11 @@ For a **roleplay** call, `score` always has three fields, plus one optional:
   `if ('complianceScorecard' in call.score)` (or a truthiness check) is the right guard. Its inner
   sections are graded content and may gain items over time — read `totalScore` and treat the rest as
   display detail.
+
+  `totalScore` itself is normally present whenever the scorecard is, but it is **optional too**: in
+  the rare case where the underlying total is not a usable number we leave the field out rather than
+  send a `0`, because a fabricated zero is indistinguishable from a genuine failing compliance score.
+  Treat an absent `totalScore` as *not assessed*, never as a zero; the section detail is still valid.
 </Callout>
 
 More scoring detail (per-skill dimensions) is coming, and will arrive the same way: as new optional
