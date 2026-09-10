@@ -86,6 +86,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /roleplay/session:
     post:
@@ -126,6 +128,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
@@ -207,6 +211,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /calls/{callId}:
     get:
@@ -246,6 +252,8 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
 components:
   securitySchemes:
@@ -271,6 +279,24 @@ components:
         example: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
 
   responses:
+    InternalError:
+      description: >-
+        An unexpected error on the Athos side. The standard error envelope is returned with the code
+        `INTERNAL_ERROR` — quote the `requestId` when you contact Athos.
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            internalError:
+              value:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "Internal server error"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     InvalidRequest:
       description: The request was malformed (validation, bad cursor, unknown drill).
       headers:
@@ -304,7 +330,7 @@ components:
                   message: "Invalid API key"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     Forbidden:
-      description: Authenticated but not permitted (inactive tenant, IP not allowed, quota).
+      description: Authenticated but not permitted (inactive tenant, or the caller's IP is not allowed).
       headers:
         X-Athos-Request-Id:
           $ref: "#/components/headers/RequestId"
@@ -562,10 +588,15 @@ components:
           description: Overall call performance, 0–100 (higher is better).
         summary:
           type: string
-          description: Short natural-language summary of the call.
+          description: >-
+            Short natural-language summary of the call. Always present, but **may be an empty
+            string** when Athos could not produce one — a very short call, or an analysis step that
+            did not complete — even though the call itself scored.
         feedback:
           type: string
-          description: Coaching feedback for the rep.
+          description: >-
+            Coaching feedback for the rep. Always present, but **may be an empty string** on the
+            same calls as `summary`.
         complianceScorecard:
           type: object
           additionalProperties: true

@@ -169,6 +169,10 @@ For a **roleplay** call, `score` always has three fields, plus one optional:
 | `feedback` | string | Coaching feedback for the rep. |
 | `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, headed by a numeric `totalScore`. |
 
+`summary` and `feedback` are always present, but either can be an **empty string**: on a very short
+call, or when the analysis step didn't complete, Athos has no prose to give even though the call
+scored.
+
 ```json
 {
   "overallScore": 82,

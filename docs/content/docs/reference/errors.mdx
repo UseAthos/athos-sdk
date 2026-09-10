@@ -48,7 +48,7 @@ The `requestId` matches the `X-Athos-Request-Id` response header — quote it in
   `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
   drill right now). These surface through the SDK's [`error` event](/sdk/errors). Most of them
   **spend the session token** — see [below](#a-failed-redemption-usually-spends-the-token).
-- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST`, `INVALID_API_KEY`,
+- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only), `INVALID_API_KEY`,
   `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).
 
 ## A failed redemption usually spends the token
