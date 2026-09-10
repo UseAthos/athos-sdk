@@ -31,12 +31,20 @@ These originate in the browser at runtime:
 | Code | Meaning |
 | --- | --- |
 | `MIC_PERMISSION_DENIED` | The user denied microphone permission. |
-| `MIC_DEVICE_DISCONNECTED` | The active microphone was unplugged mid-call. |
-| `NO_MIC_AVAILABLE` | No microphone is available on this device. |
+| `MIC_DEVICE_DISCONNECTED` | The active microphone was unplugged, or is held by another app. |
+| `NO_MIC_AVAILABLE` | No microphone is available, or the page is not served over HTTPS. |
 | `NETWORK_LOST` | The connection dropped and could not recover within 30s. The session ended. |
 | `AUDIO_PLAYBACK_BLOCKED` | The browser blocked audio autoplay; call `resumeAudio()` from a user gesture. |
 | `BROWSER_NOT_SUPPORTED` | Safari / mobile / unsupported browser (thrown synchronously from `create()`). |
 | `SESSION_ALREADY_CONNECTED` | `connect()` was called twice on the same session. |
+
+<Callout type="info">
+  **`connect()` asks for the microphone before it redeems the token**, so a denied or missing
+  microphone normally leaves the token **unspent**. Recover by fixing the device and retrying the
+  same token on a *new* session; if that returns `TOKEN_ALREADY_USED`, the failure came from later
+  in the call setup — mint a fresh token. See
+  [Microphone & audio](/sdk/microphone-and-audio#permission-is-requested-before-the-call-starts).
+</Callout>
 
 ## Codes from the session redemption
 

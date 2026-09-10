@@ -74,6 +74,11 @@ diarized transcript is delivered post-call via the Athos REST API.
 
 ## Microphone & audio controls
 
+`connect()` asks for microphone permission **before** it redeems the session token, so a rep who
+denies the prompt has not spent it — retry the same token on a new session, and mint a fresh one
+only if that comes back `TOKEN_ALREADY_USED`. The page must be served over HTTPS (or `localhost`),
+or the browser withholds mic access entirely.
+
 ```ts
 const mics = await session.listMicrophones();      // [{ deviceId, label }]
 await session.setMicrophone(mics[0].deviceId);     // switch mid-call, no drop
@@ -95,9 +100,9 @@ Branch on `error.code` (and on a thrown `AthosRoleplayError.code`). `message` is
 
 | Code | Meaning |
 | --- | --- |
-| `MIC_PERMISSION_DENIED` | The user denied microphone permission. |
-| `MIC_DEVICE_DISCONNECTED` | The active microphone was unplugged / became unavailable mid-call. |
-| `NO_MIC_AVAILABLE` | No microphone is available on this device. |
+| `MIC_PERMISSION_DENIED` | The user denied microphone permission. Usually raised before the token is spent. |
+| `MIC_DEVICE_DISCONNECTED` | The active microphone was unplugged, or is held by another app. |
+| `NO_MIC_AVAILABLE` | No microphone is available, or the page is not served over HTTPS. |
 | `NETWORK_LOST` | The connection dropped and could not be recovered within 30s. |
 | `AUDIO_PLAYBACK_BLOCKED` | The browser blocked audio autoplay; call `resumeAudio()` from a user gesture. |
 | `BROWSER_NOT_SUPPORTED` | Safari / mobile / unsupported browser (thrown synchronously from `create()`). |
