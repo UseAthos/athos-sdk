@@ -1,5 +1,5 @@
-// Tiny console logger gated by `debug` (D-54). Every message uses Athos-domain
-// vocabulary only — no vendor noun ever reaches the console.
+// Tiny console logger gated by the `debug` create() option. Every message uses
+// Athos-domain vocabulary only — no vendor noun ever reaches the console.
 
 export interface Logger {
   log(message: string, ...args: unknown[]): void;

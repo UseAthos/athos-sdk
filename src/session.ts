@@ -18,7 +18,7 @@ import type {
  * so consumers can register handlers BEFORE any network work starts; the JWT is
  * redeemed and the session joined only on `connect()`. The full lifecycle is
  * driven by a pure state machine (`state-machine.ts`) so the double-connect
- * guard (D-55) and reconnect path (D-52) are independently testable.
+ * guard and the reconnect path are independently testable.
  */
 class AthosRoleplaySessionImpl implements AthosRoleplaySession {
   private readonly emitter = new Emitter();
@@ -57,7 +57,7 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
 
   async connect(): Promise<void> {
     if (!this.machine.canConnect()) {
-      // Double-connect / second concurrent session in one tab (D-55).
+      // Double-connect / second concurrent session in one tab.
       const err = new AthosRoleplayError(
         "SESSION_ALREADY_CONNECTED",
         "connect() has already been called for this session",
@@ -207,7 +207,7 @@ export { AthosRoleplaySessionImpl };
 /** Public entry point — synchronous factory for a roleplay session. */
 export class AthosRoleplay {
   static create(opts: AthosRoleplayCreateOptions): AthosRoleplaySession {
-    // Browser gate (D-49): reject Safari / mobile synchronously, before any
+    // Browser gate: reject Safari / mobile synchronously, before any
     // network work. An absent `navigator` (SSR / non-browser) is unsupported too.
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     if (!detectBrowserSupport(ua).supported) {

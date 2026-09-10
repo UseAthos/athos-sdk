@@ -30,7 +30,6 @@ Athos does not model managers, hierarchies, or per-agency tenants in v1. The pyr
 | Id | Looks like | What it is |
 | --- | --- | --- |
 | **`callId`** | `athos_call_GZ1DjOkZv_…` | The stable, public id for a call. Use it for `GET /v1/calls/:id`, in webhooks, and in the SDK `ended` event. **This is the only call id that crosses the API boundary.** |
-| **`sessionId`** | `ext_a1b2c3…` | The SDK session's lifecycle id. Useful for client-side logging; not used for lookups. |
 | **`requestId`** | `req_2f8c1e94-…` | Returned on every API response as the `X-Athos-Request-Id` header. Quote it in support tickets. |
 
 You'll never see an internal database id. `callId` is a semver-stable public contract.
