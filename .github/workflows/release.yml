@@ -1,9 +1,16 @@
 name: Release
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  # No `v*` tag trigger any more: hand-cut tags are the ritual this workflow exists to remove.
+  # Add `tags: ["v*"]` back here if a manual escape hatch is ever needed again.
+# One release at a time: runs push to `main` and publish to npm, so two of them must never
+# interleave. Cancelling is off — a run cancelled mid-publish is exactly what we cannot have.
+concurrency:
+  group: release
+  cancel-in-progress: false
 permissions:
-  contents: read
+  contents: write          # push the version commit + tag back to main
   id-token: write          # required for OIDC trusted publishing + provenance
 jobs:
   publish:
@@ -11,6 +18,8 @@ jobs:
     environment: npm-publish   # must match the trusted-publisher config on npm
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # the bump is derived from the commits since the last tag, so we need both
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -19,4 +28,97 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test
-      - run: npm publish                  # tokenless via OIDC; publishConfig.provenance:true signs it
+
+      # Everything below mutates the repo or the registry, so it stays behind a green build+test.
+      - name: Decide what to release
+        id: decide
+        run: |
+          name=$(node -p "require('./package.json').name")
+          current=$(node -p "require('./package.json').version")
+
+          # Catch-up case: package.json is ahead of the registry because a version was bumped by
+          # hand and never published. Ship that version as-is rather than bumping past it.
+          # `npm view` exits non-zero for a version that does not exist, so the exit code says
+          # nothing useful — only a lookup that actually PRINTS the version proves it is published.
+          # Every other outcome (unknown version, registry hiccup) falls through to a publish, which
+          # fails loudly rather than silently skipping a release.
+          found=$(npm view "$name@$current" version 2>"$RUNNER_TEMP/npm-view.err" || true)
+          if [ -z "$found" ]; then
+            echo "$name@$current is not on npm — releasing it as-is, with no bump."
+            head -n 3 "$RUNNER_TEMP/npm-view.err" || true
+            echo "bump=none" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Normal case: derive the bump from the Conventional Commit prefixes written since the
+          # last release tag. docs/chore/ci/test/build/style alone are deliberately not releasable.
+          last_tag=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          range="${last_tag:+$last_tag..}HEAD"
+          subjects=$(git log --no-merges --format='%s' "$range")
+          messages=$(git log --no-merges --format='%s%n%b' "$range")
+          echo "Commits in ${range}:"
+          sed 's/^/  /' <<<"$subjects"
+
+          # The type prefix is read from subjects only, so a body that quotes "fix: ..." cannot
+          # trigger a release; a `!` marker or a BREAKING CHANGE footer is read from either.
+          if grep -qE '^[a-z]+(\([^)]+\))?!:|^BREAKING[ -]CHANGE:' <<<"$messages"; then
+            bump=major     # CLAUDE.md: a breaking change to the public contract is a major, 0.x or not
+          elif grep -qE '^feat(\([^)]+\))?:' <<<"$subjects"; then
+            bump=minor
+          elif grep -qE '^(fix|perf|refactor)(\([^)]+\))?:' <<<"$subjects"; then
+            bump=patch
+          else
+            bump=
+          fi
+
+          if [ -z "$bump" ]; then
+            echo "Nothing releasable since ${last_tag:-the start of history} — stopping here."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing a $bump bump over $current."
+            echo "bump=$bump" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Record the release in git
+        if: steps.decide.outputs.release == 'true'
+        env:
+          BUMP: ${{ steps.decide.outputs.bump }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$BUMP" = "none" ]; then
+            # package.json already holds the version being shipped; only its tag is missing.
+            version=$(node -p "require('./package.json').version")
+            if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+              echo "v$version is already tagged."
+            else
+              git tag -a "v$version" -m "chore(release): $version"
+              git push origin "v$version"
+            fi
+          else
+            npm version "$BUMP" -m "chore(release): %s"
+            # A push made with GITHUB_TOKEN cannot start another workflow run, so this cannot loop.
+            git push origin HEAD:main --follow-tags
+          fi
+
+      - name: Is this version already on npm?
+        id: guard
+        if: steps.decide.outputs.release == 'true'
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          # Same fail-open rule as above: only a lookup that prints the version may skip a publish.
+          found=$(npm view "$name@$version" version 2>"$RUNNER_TEMP/npm-view.err" || true)
+          if [ -n "$found" ]; then
+            echo "$name@$version is already on npm — skipping publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$name@$version is not on npm — publishing."
+            head -n 3 "$RUNNER_TEMP/npm-view.err" || true
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.guard.outputs.publish == 'true'
+        run: npm publish                  # tokenless via OIDC; publishConfig.provenance:true signs it
