@@ -26,37 +26,17 @@ off();
 | `error` | `{ code: string; message: string }` | A domain error. Branch on `code` — see [Error codes](/sdk/errors). |
 
 <Callout type="info">
-  There is **no live transcript event**. The diarized transcript is delivered post-call via
+  There is **no live transcript event**. The transcript is delivered post-call via
   [`GET /v1/calls/:id`](/backend/reading-calls), not streamed during the call.
 </Callout>
 
-## Session length
+## When `ended` fires
 
-A roleplay ends automatically after **two hours**. When that happens the `ended` event fires exactly
-as it does for any other call and the call is scored normally — reaching the ceiling is not an error
-and produces no failure notification. A full-sale roleplay usually runs a few minutes, so this is a
-ceiling you are unlikely to meet; it exists so an abandoned browser tab cannot hold a session open
-indefinitely.
-
-## Typical wiring
-
-```ts
-const session = AthosRoleplay.create({ token, drillKey: 'ma-full-sale' });
-
-session.on('connecting', () => showSpinner());
-session.on('ready', ({ persona }) => showCallUI(persona.name));
-session.on('personaSpeaking', ({ speaking }) => setPersonaTalking(speaking));
-session.on('userSpeaking', ({ speaking }) => setMicActive(speaking));
-session.on('reconnecting', () => showBanner('Reconnecting…'));
-session.on('reconnected', () => hideBanner());
-session.on('ended', ({ callId, durationSec }) => {
-  showSummary(durationSec);
-  // `callId` is what your backend uses to look up the score once the webhook arrives.
-});
-session.on('error', ({ code, message }) => handleError(code, message));
-
-await session.connect();
-```
+A call never ends by itself — the AI persona has no way to hang up. `ended` fires when **you** call
+`session.disconnect()`, when the **two-hour ceiling** is reached, or when the **network drops** and
+cannot recover (alongside a `NETWORK_LOST` error). Reaching the ceiling is not a failure: the
+payload is the same as any other call's and the call is scored normally. See
+[How a call ends](/sdk#how-a-call-ends).
 
 ## Using the `callId`
 

@@ -9,6 +9,10 @@ entirely** — your code never touches a WebRTC primitive.
 - Microphone selection, mute, and automatic reconnect handling built in
 - Ships as ESM + CJS with full TypeScript types
 
+**Full integration docs — minting tokens from your backend, the signed `call.scored` webhook, and
+the REST API that returns the transcript and score — are at
+[docs.useathos.ai](https://docs.useathos.ai).** This README covers the browser half only.
+
 > **Browser support:** desktop **Chrome, Edge, and Firefox** only. Safari (desktop and iOS) and all
 > mobile browsers are unsupported — `create()` throws `BROWSER_NOT_SUPPORTED` on them. Detect ahead of
 > time with the exported `detectBrowserSupport(navigator.userAgent)` and prompt the user to switch.
@@ -39,6 +43,20 @@ await session.connect();                                    // 4. join the call
 Always register handlers **before** calling `connect()` — `create()` does no network work, so nothing
 is missed.
 
+## Ending a call
+
+**The AI persona never hangs up.** A call runs until you call `session.disconnect()`, until the
+two-hour ceiling, or until the network drops — so your UI needs an "End call" button wired to
+`disconnect()`. Without one, a rep who walks away leaves the call running for the full two hours,
+billed and counted against your monthly allowance.
+
+```ts
+endCallButton.onclick = () => session.disconnect();
+```
+
+All three endings fire the `ended` event with the public `callId` — that is how you learn the call
+is over, and the id your backend uses to look up the score.
+
 ## Drill keys
 
 `drillKey` accepts any `string` — newly enabled drills work without upgrading the SDK, and keys
@@ -54,12 +72,13 @@ ATHOS_DRILL_KEYS; // ["ma-full-sale", "fe-full-sale"]
 ```
 
 Two drills are available today — `ma-full-sale` (Medicare Advantage — full enrollment) and
-`fe-full-sale` (Final Expense — full sale); more are coming soon.
+`fe-full-sale` (Final Expense — full sale). The catalog is append-only.
 
 ## Events
 
 `session.on(name, cb)` returns an unsubscribe function. There is **no live transcript event** — the
-diarized transcript is delivered post-call via the Athos REST API.
+transcript is delivered post-call via the Athos REST API
+([reading calls](https://docs.useathos.ai/backend/reading-calls)).
 
 | Event | Payload | Fires when |
 | --- | --- | --- |
@@ -132,6 +151,14 @@ session.on("error", ({ code, message }) => {
   else if (code === "AUDIO_PLAYBACK_BLOCKED") showResumeButton();
   else console.error(code, message);
 });
+
+try {
+  await session.connect();
+} catch (e) {
+  // A caught value is `unknown` under strict TypeScript; `AthosRoleplayError` narrows it.
+  if (e instanceof AthosRoleplayError) showStartFailed(e.code);
+  else throw e;
+}
 ```
 
 ## Debug logging

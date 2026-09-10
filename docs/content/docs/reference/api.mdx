@@ -39,11 +39,7 @@ The full machine-readable contract is published as an OpenAPI 3.1 document:
   </Card>
 </Cards>
 
-**Import into Postman:** File → Import → paste `https://docs.useathos.ai/openapi.yaml` (or the
-downloaded file). You'll get a ready-to-send collection for all four endpoints — just set your API key
-as the bearer token.
-
-**Generate a client:** point any OpenAPI generator at the spec, e.g.
+Point any OpenAPI generator at it for a typed client:
 
 ```bash
 npx @openapitools/openapi-generator-cli generate \

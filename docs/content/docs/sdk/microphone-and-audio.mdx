@@ -15,10 +15,13 @@ billed — so a rep who blocks the mic cannot leave a charged session that never
 That guarantee covers the pre-connect prompt only. The same codes can also be raised **after**
 redemption — a mic unplugged in the moment between the permission check and the call going live —
 and from the code alone you cannot tell which happened. So retry the token once, and mint a fresh
-one only if that retry says the token is gone. A session object is single-use, so each attempt
-needs a new one:
+one only if that retry says the token is gone. A session whose `connect()` *failed* goes back to
+idle and can be reused — but a session you cancelled with `disconnect()`, or one whose call actually
+ran, is finished. Creating a fresh session per attempt is the rule that always holds:
 
 ```ts
+import { AthosRoleplay, AthosRoleplayError } from '@useathos/sdk';
+
 const MIC_CODES = ['MIC_PERMISSION_DENIED', 'NO_MIC_AVAILABLE', 'MIC_DEVICE_DISCONNECTED'];
 
 // Called from your "start call" button, and again from a "try again" button.
@@ -29,11 +32,14 @@ async function start(token: string) {
     await session.connect();
     return session;
   } catch (err) {
-    if (MIC_CODES.includes(err.code)) {
-      // Don't loop: getUserMedia won't behave differently until the rep acts.
-      showMicHelp({ retryWith: token });
-    } else if (err.code === 'TOKEN_ALREADY_USED') {
-      showMicHelp({ retryWith: await mintToken() }); // the failure came later
+    // A caught value is `unknown` under strict TypeScript — narrow before reading `.code`.
+    if (err instanceof AthosRoleplayError) {
+      if (MIC_CODES.includes(err.code)) {
+        // Don't loop: getUserMedia won't behave differently until the rep acts.
+        showMicHelp({ retryWith: token });
+      } else if (err.code === 'TOKEN_ALREADY_USED') {
+        showMicHelp({ retryWith: await mintToken() }); // the failure came later
+      }
     }
     throw err;
   }

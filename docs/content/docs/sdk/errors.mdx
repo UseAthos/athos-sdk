@@ -22,6 +22,15 @@ session.on('error', ({ code, message }) => {
     default: console.error(code, message);
   }
 });
+
+try {
+  await session.connect();
+} catch (e) {
+  // A caught value is `unknown` under strict TypeScript. `AthosRoleplayError` narrows it so
+  // you can read `.code` — anything else is not from the SDK, so rethrow it.
+  if (e instanceof AthosRoleplayError) showStartFailed(e.code);
+  else throw e;
+}
 ```
 
 ## Codes the SDK emits
@@ -62,9 +71,8 @@ channel:
 | `INTERNAL_ERROR` | An unexpected error. | Mint a new token and start a new call; if it persists, contact Athos with the message. |
 
 <Callout type="warn">
-  **A failed redemption usually spends the token.** It is consumed as the request is redeemed, so
-  only `INVALID_TOKEN`, `TOKEN_EXPIRED` and `INVALID_REQUEST` leave it unspent — every other failure
-  needs a newly minted token, not a replay. Full rule:
+  **A failed redemption usually spends the token** — most of the failures above need a newly minted
+  token, not a replay. Which ones leave it unspent:
   [error reference](/reference/errors#a-failed-redemption-usually-spends-the-token).
 </Callout>
 

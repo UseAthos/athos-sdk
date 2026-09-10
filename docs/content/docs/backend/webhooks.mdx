@@ -51,7 +51,7 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
 | `event` | Always `"call.scored"` in v1. |
 | `success` | `true` when the call scored. `false` when it didn't — see [When `success` is `false`](#when-success-is-false). |
 | `callId` | Public `athos_call_…` id. Look the call up with this. |
-| `source` | Always `"roleplay"` in v1 (more sources coming soon). |
+| `source` | Always `"roleplay"` today. |
 | `externalUserId` / `externalAgencyId` | The rep / agency you minted the session with. `externalAgencyId` may be `null`. |
 | `occurredAt` | ISO 8601 timestamp of the event. |
 | `requestId` | A delivery support id — quote it to Athos if a delivery looks wrong. |
@@ -191,8 +191,10 @@ def athos_webhook():
 - **Deduplicate on `X-Athos-Webhook-Id`.** It's stable across the retry, so the same event can arrive
   twice with the same id. Treat that id as your idempotency key.
 - **Polling is the backstop.** If both delivery attempts fail, the event won't be redelivered later —
-  reconcile by polling [`GET /v1/calls`](/backend/reading-calls) on a schedule (e.g. every few
-  minutes for recently-ended calls).
+  reconcile by polling [`GET /v1/calls`](/backend/reading-calls) on a schedule. That endpoint filters
+  on when a call **ended**, and scoring lands minutes later, so each poll must re-scan a window that
+  **overlaps** the previous one (an hour back is plenty) and deduplicate on the call `id`. A
+  forward-only watermark misses calls that were scored after you read past them.
 
 ## A note on frameworks
 

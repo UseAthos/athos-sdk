@@ -61,21 +61,5 @@ in-progress calls. The webhook is your push signal; polling `GET /v1/calls` is t
 
 ## Call sources
 
-Every call carries a **`source`**. In v1 it is always **`roleplay`** — a practice call your rep ran
+Every call carries a **`source`**. Today it is always **`roleplay`** — a practice call your rep ran
 through the SDK.
-
-<Callout type="info">
-  **Coming soon:** scoring of **real production calls** (a second source, `ingestion`) — your reps'
-  live customer calls run through the same engine. `source` already ships on every call and webhook,
-  so adding it later won't be a breaking change. Branch on it and default to `roleplay`.
-</Callout>
-
-## Where each credential lives
-
-The API has two authentication schemes for two very different callers:
-
-- Your **backend** uses the long-lived **API key** for all server-to-server calls (mint, read).
-- The **browser SDK** uses a short-lived, single-use **session token** for exactly one live call.
-
-This split keeps your API key out of the browser entirely. Details in
-[Authentication](/authentication).
