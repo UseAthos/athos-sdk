@@ -38,14 +38,24 @@ You'll never see an internal database id. `callId` is a semver-stable public con
 ## The call lifecycle
 
 ```text
-  created ──▶ live (rep + AI persona talk) ──▶ ended ──▶ scoring ──▶ scored
-                                                                       │
-                                          ┌────────────────────────────┤
-                                          ▼                            ▼
-                                  call.scored webhook         GET /v1/calls[/:id]
+  created ──▶ live (rep + AI persona talk) ──▶ ended ──▶ scoring
+                                                              │
+                            ┌─────────────────────────────────┴───┐
+                            ▼                                     ▼
+                         scored                              not scored
+                            │                                     │
+                ┌───────────┴───────────────┐                     ▼
+                ▼                           ▼       call.scored (success: false)
+   call.scored (success: true)     GET /v1/calls[/:id]
 ```
 
-A call becomes visible to the REST API and triggers the webhook **only once it is scored**.
+Every call that ends reaches one of two terminal outcomes, and the `call.scored` webhook fires for
+both: `success: true` when Athos scored the call, `success: false` when it could not be scored (the
+rep never spoke, the call never completed, or scoring failed). **Only scored calls are readable over
+REST** — a `success: false` call answers `404 CALL_NOT_FOUND` and never appears in `GET /v1/calls`,
+so the webhook is the only signal you get for it. Handle both branches: see [when `success` is
+`false`](/backend/webhooks#when-success-is-false).
+
 `GET /v1/calls` returns scored calls only — it is a manager-history read, not a queue of
 in-progress calls. The webhook is your push signal; polling `GET /v1/calls` is the backstop.
 

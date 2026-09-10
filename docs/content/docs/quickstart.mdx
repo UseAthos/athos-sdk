@@ -134,8 +134,54 @@ browser detection.
 When the call finishes scoring, Athos POSTs a small, signed payload to your registered URL. Verify
 the signature over the **raw request body**, then fetch the detail.
 
+```json
+{
+  "event": "call.scored",
+  "success": true,
+  "callId": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
+  "source": "roleplay",
+  "externalUserId": "rep_8842",
+  "externalAgencyId": "agency_chicago",
+  "occurredAt": "2026-06-05T18:09:14.000Z",
+  "requestId": "req_b1f0…"
+}
+```
 
-See [Webhooks](/backend/webhooks) for the full payload, retries, and a Python verifier.
+```ts
+import crypto from 'node:crypto';
+import express from 'express';
+
+function verifyAthosSignature(rawBody: string, header: string | undefined, secret: string): boolean {
+  if (!header) return false;
+  const parts = Object.fromEntries(header.split(',').map((kv) => kv.split('=')));
+  const { t, v1 } = parts;
+  if (!t || !v1) return false;
+  if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // 5-min replay window
+  const expected = crypto.createHmac('sha256', secret).update(`${t}.${rawBody}`).digest('hex');
+  return v1.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(v1, 'hex'), Buffer.from(expected, 'hex'));
+}
+
+// Mount with a RAW body parser so the bytes are untouched.
+app.post('/athos/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const raw = req.body.toString('utf8');
+  if (!verifyAthosSignature(raw, req.header('X-Athos-Signature'), process.env.ATHOS_WHSEC!)) {
+    return res.sendStatus(401);
+  }
+
+  res.sendStatus(200); // ACK fast — do the work afterwards
+
+  const evt = JSON.parse(raw);
+  if (!alreadyProcessed(req.header('X-Athos-Webhook-Id'))) {
+    if (evt.success) void fetchAndStoreScore(evt.callId);
+    else markAttemptUnscored(evt.callId, evt.reason, evt.reasonMessage);
+  }
+});
+```
+
+`success` is `false` when the call could not be scored — there is no score to fetch for it. Retries
+reuse the same `X-Athos-Webhook-Id`, so treat that header as your idempotency key. See
+[Webhooks](/backend/webhooks) for the full payload, retries, and a Python verifier.
 
 </Step>
 

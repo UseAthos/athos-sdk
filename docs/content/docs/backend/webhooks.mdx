@@ -183,8 +183,9 @@ def athos_webhook():
 
 ## Responding, retries, and idempotency
 
-- **Respond `2xx` quickly.** Any non-2xx (or a timeout) is treated as a failed delivery. ACK first,
-  then do the work asynchronously.
+- **Respond `2xx` within 10 seconds.** After 10 seconds we abort the request and record a failed
+  delivery. Any non-2xx is treated as a failed delivery too. ACK first, then do the work
+  asynchronously.
 - **Retries are minimal.** If the first attempt fails, Athos retries **once after ~5 minutes**, then
   stops. There is no long exponential tail.
 - **Deduplicate on `X-Athos-Webhook-Id`.** It's stable across the retry, so the same event can arrive
