@@ -339,3 +339,90 @@ describe("cancelling during the microphone prompt", () => {
     expect(errors).toEqual(["MIC_DEVICE_DISCONNECTED"]);
   });
 });
+
+describe("disconnect() when there is nothing in flight to cancel", () => {
+  it("does not hide the failure that ended the call, when cleanup runs on `ended`", async () => {
+    stubNavigator(grantingMic());
+    transportConnect.mockImplementationOnce(async (_p: unknown, cb: any) => {
+      // A failed mic publication: the room reports Disconnected, then the join
+      // throws. `on('ended', …)` cleanup is a normal partner idiom, and it must
+      // not retroactively turn a genuine failure into a cancellation.
+      cb.onEnded({ callId: "call_1", durationSec: 0 });
+      throw new AthosRoleplayError(
+        "MIC_DEVICE_DISCONNECTED",
+        "The microphone is no longer readable.",
+      );
+    });
+
+    const session = AthosRoleplay.create({ token: "t", drillKey: "ma-full-sale" });
+    const errors: string[] = [];
+    session.on("error", ({ code }) => errors.push(code));
+    session.on("ended", () => void session.disconnect());
+
+    await expect(session.connect()).rejects.toMatchObject({
+      code: "MIC_DEVICE_DISCONNECTED",
+    });
+    expect(errors).toEqual(["MIC_DEVICE_DISCONNECTED"]);
+  });
+
+  it("does not poison the next connect() when called before one starts", async () => {
+    stubNavigator(grantingMic());
+    const session = AthosRoleplay.create({ token: "t", drillKey: "ma-full-sale" });
+
+    await session.disconnect(); // nothing has started; nothing to cancel
+    await session.connect();
+
+    expect(redeemSession).toHaveBeenCalledTimes(1);
+    expect(transportConnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("delivers only the terminal event once a cancel has landed", async () => {
+    stubNavigator(grantingMic());
+    let cbs!: any;
+    let finishJoin!: () => void;
+    const held = new Promise<void>((res) => {
+      finishJoin = res;
+    });
+    let joinStarted!: () => void;
+    const joining = new Promise<void>((res) => {
+      joinStarted = res;
+    });
+    transportConnect.mockImplementationOnce(async (_p: unknown, cb: any) => {
+      cbs = cb;
+      joinStarted();
+      await held;
+    });
+
+    const session = AthosRoleplay.create({ token: "t", drillKey: "ma-full-sale" });
+    const seen: string[] = [];
+    for (const name of [
+      "ready",
+      "error",
+      "reconnecting",
+      "reconnected",
+      "personaSpeaking",
+      "userSpeaking",
+      "ended",
+    ] as const) {
+      session.on(name, () => seen.push(name));
+    }
+
+    const connecting = session.connect();
+    await joining;
+    await session.disconnect();
+
+    // The transport keeps talking while it tears down. None of this belongs in
+    // a cancelled call's UI — except the terminal event.
+    cbs.onReady({ persona: { name: "Ruth" } });
+    cbs.onPersonaSpeaking({ speaking: true });
+    cbs.onUserSpeaking({ speaking: true });
+    cbs.onReconnecting();
+    cbs.onReconnected();
+    cbs.onError({ code: "NETWORK_LOST", message: "gone" });
+    cbs.onEnded({ callId: "call_1", durationSec: 3 });
+    finishJoin();
+    await connecting;
+
+    expect(seen).toEqual(["ended"]);
+  });
+});

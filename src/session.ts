@@ -28,10 +28,11 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
   private readonly logger: Logger;
   private callId: string | null = null;
   /**
-   * Set by `disconnect()`. Deliberately NOT derived from the state machine:
-   * `ended` is also reached by a call that genuinely failed or finished, and
-   * those must still reach the consumer as an error. Only an explicit
-   * `disconnect()` means "the consumer no longer wants this session".
+   * Set when `disconnect()` cancels a session that was still in flight.
+   * Deliberately NOT derived from the state machine: `ended` is also reached by
+   * a call that failed or finished on its own, and those must still reach the
+   * consumer as an error. Only an explicit `disconnect()` on a live attempt
+   * means "the consumer no longer wants this session".
    */
   private disconnectRequested = false;
 
@@ -166,7 +167,15 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
   }
 
   async disconnect(): Promise<void> {
-    this.disconnectRequested = true;
+    // Only a session that is actually in flight can be *cancelled*. From `idle`
+    // there is nothing to stop, and from `ended` this is cleanup after the fact
+    // — `on("ended", () => session.disconnect())` is a normal partner idiom.
+    // Marking either as a cancellation does real damage: the first bricks the
+    // next connect() (it would return silently, stranding the machine in
+    // `connecting`), and the second swallows the very failure that ended the
+    // call, so the rep never learns their microphone died.
+    const inFlight = this.machine.state !== "idle" && this.machine.state !== "ended";
+    if (inFlight) this.disconnectRequested = true;
     this.machine.apply("DISCONNECT");
     this.logger.log("disconnecting");
     await this.transport.disconnect();
