@@ -107,14 +107,17 @@ Branch on `error.code` (and on a thrown `AthosRoleplayError.code`). `message` is
 | `TOKEN_ALREADY_USED` | The single-use token was already redeemed. |
 | `INVALID_REQUEST` | The request body was invalid (e.g. a missing/blank `drillKey`). |
 | `DRILL_NOT_FOUND` | The `drillKey` does not match a known drill. |
-| `TENANT_INACTIVE` | The reseller tenant is inactive. |
-| `TENANT_QUOTA_EXCEEDED` | The reseller tenant has exceeded its usage quota. |
-| `SERVICE_UNAVAILABLE` | The Athos service is temporarily unavailable; retry. |
+| `SERVICE_UNAVAILABLE` | The Athos service is temporarily unavailable; the attempt consumed the session token, so mint a new one and start a new call. |
 | `INTERNAL_ERROR` | An unexpected error; see `message`. |
 
-The full shared taxonomy (`ATHOS_ERROR_CODES`) also includes the API-key/IP codes
-(`INVALID_API_KEY`, `API_KEY_REVOKED`, `IP_NOT_ALLOWED`, `CALL_NOT_FOUND`) used by other Athos REST
-endpoints; the SDK's roleplay-session call surfaces the subset above.
+A failed redemption usually **spends** the session token — it is consumed as the request is
+redeemed, so only `INVALID_TOKEN`, `TOKEN_EXPIRED` and `INVALID_REQUEST` leave it unspent. Recover
+from anything else by minting a new token, not by replaying the same request.
+
+The full shared taxonomy (`ATHOS_ERROR_CODES`) also includes codes returned to your **backend** by
+other Athos REST endpoints, never to the browser: `INVALID_API_KEY`, `API_KEY_REVOKED`,
+`IP_NOT_ALLOWED`, `TENANT_INACTIVE`, `TENANT_QUOTA_EXCEEDED` and `CALL_NOT_FOUND`. The SDK's
+roleplay-session call surfaces the subset above.
 
 ```ts
 import { AthosRoleplayError } from "@useathos/sdk";

@@ -46,10 +46,20 @@ The `requestId` matches the `X-Athos-Request-Id` response header — quote it in
   raises the allowance.
 - **`POST /roleplay/session`** (SDK redeem): `INVALID_REQUEST`, `DRILL_NOT_FOUND`, `INVALID_TOKEN`,
   `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
-  drill right now). These surface through the SDK's [`error` event](/sdk/errors).
-
-  A `SERVICE_UNAVAILABLE` here is transient, but the session token is **consumed by the attempt**:
-  replaying the identical request returns `TOKEN_ALREADY_USED`, even once the drill is available
-  again. Recover by minting a **new** session token and starting a new call.
+  drill right now). These surface through the SDK's [`error` event](/sdk/errors). Most of them
+  **spend the session token** — see [below](#a-failed-redemption-usually-spends-the-token).
 - **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST`, `INVALID_API_KEY`,
   `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).
+
+## A failed redemption usually spends the token
+
+The session token is single-use, and it is **consumed as the request is redeemed** — before the
+call is set up. So any failure raised after that point (`DRILL_NOT_FOUND`, `SERVICE_UNAVAILABLE`,
+`INTERNAL_ERROR`) leaves the token spent: replaying the identical request returns
+`TOKEN_ALREADY_USED`, even once the underlying condition has cleared. Recover by minting a **new**
+session token and starting a new call.
+
+Only three codes are raised *before* redemption and leave the token unspent: `INVALID_TOKEN`,
+`TOKEN_EXPIRED` and `INVALID_REQUEST`. Of those, only `INVALID_REQUEST` is worth retrying with the
+same token — a rejected or expired token will not be accepted on a second attempt either. Treat
+every other failure as having spent the token.
