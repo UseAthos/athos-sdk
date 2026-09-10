@@ -143,6 +143,11 @@ paths:
         (`endedAt` descending), cursor-paginated. This is a manager-history read, not a webhook
         reconciliation feed.
 
+        `from` and `to` filter on when the call **ended**, not on when it was scored. Scoring
+        finishes minutes after a call ends, so a call can appear inside a window you have already
+        read past: re-scan an overlapping window on each poll and deduplicate on `id` rather than
+        moving a watermark forward only.
+
         Server-to-server only (no CORS).
       security:
         - ApiKeyAuth: []
@@ -150,7 +155,7 @@ paths:
         - name: from
           in: query
           required: true
-          description: Lower bound (inclusive) on the call window. ISO 8601.
+          description: Lower bound (inclusive) on when the call ended. ISO 8601.
           schema:
             type: string
             format: date-time
@@ -158,7 +163,7 @@ paths:
         - name: to
           in: query
           required: false
-          description: Upper bound (inclusive). ISO 8601.
+          description: Upper bound (inclusive) on when the call ended. ISO 8601.
           schema:
             type: string
             format: date-time
@@ -221,7 +226,7 @@ paths:
       operationId: getCall
       description: |
         Called by **your backend**. Returns the full scored detail for one call, including the
-        diarized transcript and the `score` blob. Look up by the public `id`
+        speaker-labelled `transcript` and the `score` object. Look up by the public `id`
         (`athos_call_…`) returned in the list response, the webhook `callId`, or the SDK `ended` event.
 
         A call belonging to a different tenant returns `404 CALL_NOT_FOUND` (existence never leaks
@@ -412,10 +417,8 @@ components:
       type: string
       enum: [roleplay, ingestion]
       description: >
-        The call source. Today every call Athos produces is `roleplay` (a practice call run through the
-        SDK). `ingestion` — scoring of real production calls — is coming, and is listed here so a
-        generated client never rejects a value this API can emit. Branch on it and default to
-        `roleplay`.
+        The call source. Every call is `roleplay` — a practice call run through the SDK. The enum
+        lists every value the field can carry so a generated client never rejects one.
 
     MintSessionRequest:
       type: object
@@ -450,9 +453,9 @@ components:
           type: string
           description: >-
             The drill to practice. Two drills are available today: `ma-full-sale` (Medicare
-            Advantage — full enrollment) and `fe-full-sale` (Final Expense — full sale); more are
-            coming soon. Deliberately not an enum so newly added drills don't break generated
-            clients. See the Drills reference for the catalog.
+            Advantage — full enrollment) and `fe-full-sale` (Final Expense — full sale). The
+            catalog is append-only and deliberately not an enum, so a newly added key works without
+            regenerating your client. See the Drills reference for the catalog.
           examples: ["ma-full-sale", "fe-full-sale"]
         filters:
           type: object
@@ -527,6 +530,32 @@ components:
           type: [string, "null"]
           format: date-time
 
+    TranscriptTurn:
+      type: object
+      additionalProperties: true
+      required: [role, content]
+      description: One turn of the call transcript.
+      properties:
+        role:
+          type: string
+          enum: [agent, beneficiary]
+          description: >
+            Who spoke. `agent` is the human rep being graded; `beneficiary` is the AI customer they
+            practised against.
+        content:
+          type: string
+          description: What was said on this turn.
+        startTime:
+          type: number
+          description: >
+            Optional. Start of the turn, in seconds from the beginning of the call. Not present on
+            roleplay calls today.
+        endTime:
+          type: number
+          description: >
+            Optional. End of the turn, in seconds from the beginning of the call. Not present on
+            roleplay calls today.
+
     CallDetail:
       allOf:
         - $ref: "#/components/schemas/SlimCall"
@@ -538,10 +567,10 @@ components:
               enum: [scored]
             transcript:
               type: array
-              description: Diarized turns (role + content). Treat each turn loosely.
+              description: >
+                The call transcript, as a flat list of turns in the order they were spoken.
               items:
-                type: object
-                additionalProperties: true
+                $ref: "#/components/schemas/TranscriptTurn"
             score:
               $ref: "#/components/schemas/Score"
             audioUrl:
@@ -578,10 +607,8 @@ components:
       required: [overallScore, summary, feedback]
       description: |
         The scored result of a roleplay call. `overallScore`, `summary` and `feedback` are always
-        present; `complianceScorecard` is optional. **Richer scoring (per-skill dimensions) is coming
-        and will be additive** — new optional keys, so reading the fields you know stays
-        forward-compatible. `additionalProperties` is `true` for that reason; don't assume these are
-        the only keys.
+        present; `complianceScorecard` is optional. `additionalProperties` is `true` because keys
+        can be added: read the fields you know and don't assume these are the only ones.
       properties:
         overallScore:
           type: number

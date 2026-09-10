@@ -14,8 +14,8 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 
 | Param | Required | Notes |
 | --- | --- | --- |
-| `from` | ✅ | Lower bound (ISO 8601). |
-| `to` | | Upper bound (ISO 8601). |
+| `from` | ✅ | Lower bound (ISO 8601) on when the call **ended**. |
+| `to` | | Upper bound (ISO 8601) on when the call **ended**. |
 | `source` | | Filter by source. Every call is `roleplay` today. |
 | `externalUserId` | | Filter to one rep. |
 | `externalAgencyId` | | Filter to one agency (a label, never an auth boundary). |
@@ -45,7 +45,15 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 
 `nextCursor` is `null` on the last page. Pass it back as `cursor` to page through.
 
-<Tabs items={['curl', 'Node', 'Python']}>
+<Callout type="warn">
+  **`from` and `to` filter on when the call *ended*, not on when it was scored**, and results come
+  back newest-ended first. Scoring finishes some minutes after the call ends, so a call can become
+  readable inside a window you have already read past. A watermark that only ever moves forward will
+  silently skip those calls — on each poll, re-scan a window that overlaps the last one (an hour is
+  plenty) and deduplicate on `id`.
+</Callout>
+
+<Tabs items={['curl', 'Node']}>
 <Tab value="curl">
 ```bash
 curl -G https://app.useathos.ai/api/external/v1/calls \
@@ -72,28 +80,6 @@ async function* allCalls(from: string) {
 for await (const call of allCalls('2026-06-01T00:00:00Z')) {
   console.log(call.id, call.drillKey, call.scoredAt);
 }
-```
-</Tab>
-<Tab value="Python">
-```python
-import os, requests
-
-def all_calls(frm: str):
-    cursor = None
-    while True:
-        params = {"from": frm}
-        if cursor:
-            params["cursor"] = cursor
-        r = requests.get(
-            "https://app.useathos.ai/api/external/v1/calls",
-            headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
-            params=params, timeout=10,
-        )
-        page = r.json()
-        yield from page["data"]
-        cursor = page["nextCursor"]
-        if not cursor:
-            break
 ```
 </Tab>
 </Tabs>
@@ -128,8 +114,8 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
   "durationSec": 612,
   "scoredAt": "2026-06-05T14:50:29.005Z",
   "transcript": [
-    { "role": "assistant", "content": "Hey." },
-    { "role": "user", "content": "Hi James, how are you?" }
+    { "role": "agent", "content": "Hi, this is Sam from the benefits line." },
+    { "role": "beneficiary", "content": "Yeah, I saw something about the grocery card." }
   ],
   "score": {
     "overallScore": 82,
@@ -144,6 +130,25 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
   "updatedAt": "2026-06-05T14:50:29.100Z"
 }
 ```
+
+## The `transcript`
+
+A flat list of turns, in the order they were spoken:
+
+```json
+[
+  { "role": "agent", "content": "Hi, this is Sam from the benefits line." },
+  { "role": "beneficiary", "content": "Yeah, I saw something about the grocery card." }
+]
+```
+
+| Field | Type | What it is |
+| --- | --- | --- |
+| `role` | `"agent"` or `"beneficiary"` | Who spoke. **`agent` is your rep** — the human being graded. **`beneficiary` is the AI customer** they practised against. |
+| `content` | string | What was said on that turn. |
+| `startTime`, `endTime` | number *(optional)* | Turn boundaries in seconds from the start of the call. Not present on roleplay calls today — read them defensively. |
+
+Get those two the wrong way round and every speaker label in your UI is inverted.
 
 ## Recording playback
 
@@ -173,18 +178,6 @@ For a **roleplay** call, `score` always has three fields, plus one optional:
 call, or when the analysis step didn't complete, Athos has no prose to give even though the call
 scored.
 
-```json
-{
-  "overallScore": 82,
-  "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
-  "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan.",
-  "complianceScorecard": {
-    "totalScore": 74,
-    "…": "section-by-section detail"
-  }
-}
-```
-
 <Callout type="info">
   **`complianceScorecard` is optional — check for it, don't assume it.** It appears on Medicare
   Advantage drills only, and only when the call ran long enough to assess (roughly five minutes); a
@@ -198,6 +191,3 @@ scored.
   send a `0`, because a fabricated zero is indistinguishable from a genuine failing compliance score.
   Treat an absent `totalScore` as *not assessed*, never as a zero; the section detail is still valid.
 </Callout>
-
-More scoring detail (per-skill dimensions) is coming, and will arrive the same way: as new optional
-keys on `score`. Read the fields you know and ignore the rest.

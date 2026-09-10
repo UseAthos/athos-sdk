@@ -56,12 +56,9 @@ Athos API** — and finishes with a webhook back to your backend:
 
 ## Two kinds of credentials
 
-| Credential | Who holds it | Used for |
-| --- | --- | --- |
-| **API key** (`ath_live_…`) | your **backend**, secret | mint sessions, read calls — all server-to-server |
-| **Session token** (JWT) | the **browser**, short-lived & single-use | one live roleplay call, via the SDK |
-
-The browser never sees your API key. See [Authentication](/authentication).
+Your backend holds a secret, long-lived **API key**. The browser gets a short-lived **session
+token** your backend mints with it, good for one call. The browser never sees the API key. See
+[Authentication](/authentication).
 
 ## Start here
 
@@ -73,9 +70,3 @@ The browser never sees your API key. See [Authentication](/authentication).
     Tenancy, identifiers, the call lifecycle, and call sources.
   </Card>
 </Cards>
-
-<Callout type="warn">
-  The SDK supports **desktop Chrome, Edge, and Firefox only**. Safari (desktop and iOS) and all
-  mobile browsers are unsupported. Detect ahead of time and prompt the user to switch — see
-  [Browser support](/sdk/browser-support).
-</Callout>
