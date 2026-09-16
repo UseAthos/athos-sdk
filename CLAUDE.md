@@ -22,7 +22,13 @@ API, docs, types, or error messages. Keep it that way.
 - `src/session.ts`, `src/state-machine.ts`, `src/transport/`, … — internals.
 - `tests/` — vitest (node env, no DOM). `tests/public-surface.test.ts` guards `index.ts`.
 - `example/` — a Vite browser harness (`npm run example`).
-- `docs/` — the Fumadocs docs site (own `npm install`, own deploy).
+- `docs/` — the Fumadocs docs site (own `npm install`, own deploy). The whole site sits behind a
+  shared password: `docs/src/proxy.ts` gates every request, `docs/src/lib/auth/` holds the helpers,
+  and `docs/tests/` covers them (`npm test` inside `docs/`). It's driven by `DOCS_PASSWORD` +
+  `DOCS_AUTH_SECRET` (≥ 32 chars) on the host — unset locally the site runs open, unset or weak in
+  production it fails closed with a 503. Never put a real password in `docs/.env.example`; use
+  `docs/.env.local`. Login-attempt rate limiting is **not** in the code — it belongs in the host's
+  firewall on `POST /api/auth/login`.
 - `.github/workflows/` — `ci.yml` + `release.yml`.
 
 ## Stack & commands
