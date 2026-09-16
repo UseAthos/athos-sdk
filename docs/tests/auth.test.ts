@@ -49,19 +49,27 @@ describe('session tokens', () => {
 });
 
 describe('isPublicPath', () => {
-  it.each(['/login', '/api/auth/login', '/_next/static/chunks/main.js', '/favicon.ico', '/logo.png'])(
+  it.each(['/login', '/api/auth/login', '/_next/static/chunks/main.js', '/favicon.ico'])(
     'leaves %s open',
     (path) => {
       expect(isPublicPath(path)).toBe(true);
     },
   );
 
-  it.each(['/', '/sdk/quickstart', '/api/search', '/llms.txt', '/llms-full.txt', '/openapi.yaml', '/loginx'])(
-    'gates %s',
-    (path) => {
-      expect(isPublicPath(path)).toBe(false);
-    },
-  );
+  it.each([
+    '/',
+    '/sdk/quickstart',
+    '/api/search',
+    '/llms.txt',
+    '/llms-full.txt',
+    '/openapi.yaml',
+    '/loginx',
+    // OG images render page titles; an image-suffix rule must not exempt them.
+    '/og/docs/sdk/quickstart/image.png',
+    '/sdk/quickstart.png',
+  ])('gates %s', (path) => {
+    expect(isPublicPath(path)).toBe(false);
+  });
 });
 
 describe('resolveGate', () => {
@@ -83,5 +91,11 @@ describe('resolveGate', () => {
 
   it('is misconfigured when the password is set without a secret', () => {
     expect(resolveGate({ DOCS_PASSWORD: 'pw', NODE_ENV: 'development' })).toEqual({ mode: 'misconfigured' });
+  });
+
+  it('is misconfigured when the secret is shorter than 32 characters', () => {
+    expect(resolveGate({ DOCS_PASSWORD: 'pw', DOCS_AUTH_SECRET: 'short', NODE_ENV: 'production' })).toEqual({
+      mode: 'misconfigured',
+    });
   });
 });

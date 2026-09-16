@@ -11,15 +11,30 @@ describe('safeNextPath', () => {
     expect(safeNextPath('')).toBe('/');
   });
 
-  it.each(['https://evil.example', '//evil.example/x', '/\\evil.example', 'javascript:alert(1)', 'sdk/quickstart'])(
-    'rejects %s and falls back to the root',
-    (value) => {
-      expect(safeNextPath(value)).toBe('/');
-    },
-  );
+  it.each([
+    'https://evil.example',
+    '//evil.example/x',
+    '/\\evil.example',
+    '/\\/evil.example',
+    'javascript:alert(1)',
+    'sdk/quickstart',
+    // Browsers strip ASCII tab/CR/LF before URL parsing, so these resolve off-site.
+    '/\t//evil.example/x',
+    '/\n//evil.example/x',
+    '/\r\\evil.example',
+    '/%09//evil.example/x',
+  ])('rejects %j and falls back to the root', (value) => {
+    expect(safeNextPath(value)).toBe('/');
+  });
 
   it('does not bounce back to the login page itself', () => {
     expect(safeNextPath('/login')).toBe('/');
     expect(safeNextPath('/login?next=%2Fx')).toBe('/');
+    expect(safeNextPath('/login#frag')).toBe('/');
+    expect(safeNextPath('/login/')).toBe('/');
+  });
+
+  it('drops a fragment but keeps path and query', () => {
+    expect(safeNextPath('/concepts?x=1#section')).toBe('/concepts?x=1');
   });
 });
