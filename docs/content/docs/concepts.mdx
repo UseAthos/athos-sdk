@@ -16,12 +16,11 @@ Within your tenant, Athos keeps a **roster**:
 - An **agency** is one of your customers — a group of reps. It is created for you the first time
   you register a rep without naming one, and you can rename it.
 - An **agent** is a rep. Each agent belongs to exactly one agency and is registered once per tenant,
-  under any of four handles: their NPN, their email, **your own id for them** (`platformAgentId`),
-  or the Athos id registration returns (`agentId`).
+  with at least one of their NPN, their email or **your own id for them** (`platformAgentId`) — and
+  is findable afterwards by any of those or by the Athos id registration returns (`agentId`).
 
 See [Managing agencies and agents](/backend/managing-agencies-and-agents). Nobody from your world
-ever logs into Athos — the roster exists so calls can be attributed and read back by agency and by
-agent, entirely through this API.
+ever logs into Athos — the roster is maintained entirely through this API.
 
 Two free-form labels also travel with a session today:
 

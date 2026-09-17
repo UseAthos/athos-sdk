@@ -4,8 +4,7 @@ description: Register your reps, get an agency for each customer for free, and l
 ---
 
 Athos keeps a **roster** for your account: the **agencies** you serve and the **agents** (reps) in
-each. Every call is attributed to one agent and one agency, so the roster is what makes "show me
-this agency's calls" and "score this rep" possible. Your backend maintains it with three calls.
+each. Your backend maintains it with three calls: register, look up, update.
 
 The whole integration is one question and one answer: **"do you have this person?"** — look them
 up by any id you already hold; if not, register them and get an agency for free. The two ids that
@@ -37,12 +36,13 @@ Content-Type: application/json
     },
     platformAgencyId: {
       type: 'string',
-      description: 'Your own id for the NEW agency. Not allowed together with agencyId — set it on an existing agency with PATCH.',
+      description: 'Your own id for the agency. If one of your agencies already carries it the agent joins that agency; otherwise a new agency is created with it. Not allowed together with agencyId.',
     },
   }}
 />
 
-At least one of `npn`, `email` or `platformAgentId` is required.
+At least one of `npn`, `email` or `platformAgentId` is required. For every optional field, send it or
+omit it — `null` is treated as omitted.
 
 **Response** `201 Created`
 
@@ -69,12 +69,13 @@ At least one of `npn`, `email` or `platformAgentId` is required.
 
 With no `agencyId`, the agent is placed in a **new agency named after them** — there is no separate
 "create an agency" step. Rename it whenever you like (below). To add a second rep to that agency,
-pass its `id` as `agencyId`.
+send the same `platformAgencyId` again, or pass the agency's `id` as `agencyId`.
 
 <Callout type="info">
-  **Store both ids.** `agent.id` is one of the two ids the session mint will accept from the next
-  release (the other is your own `platformAgentId`), and `agency.id` is how you address that agency
-  on every later call.
+  **The ids you get back are the ones later releases build on.** This release lets you register,
+  look up and update. `agent.id` and `agency.id` are what sessions and call reads will accept next,
+  alongside your own `platformAgentId` / `platformAgencyId` — so you can store both, or store
+  neither and keep sending yours.
 </Callout>
 
 **Already registered?** Registering a rep who already exists under any handle you sent is a
@@ -119,7 +120,7 @@ const r = await fetch('https://app.useathos.ai/api/external/v1/agents', {
     lastName: rep.lastName,
     email: rep.email,
     platformAgentId: rep.id,         // your id for the rep
-    platformAgencyId: rep.agencyId,  // your id for their agency (new agency only)
+    platformAgencyId: rep.agencyId,  // your id for their agency — joins it if we already know it, creates it otherwise
   }),
 });
 const body = await r.json();
@@ -134,14 +135,15 @@ if (r.status === 201) {
 
 ## Look up — `GET /v1/agents`
 
-The "do you have this person?" call. Filter by **any one** of the four handles and get that agent
-back — or an empty `data` when nobody matches. A miss is a normal answer, **never a 404**.
+The "do you have this person?" call. Filter by **exactly one** of the four handles and get that agent
+back — or an empty `data` when nobody matches. A miss is a normal answer, **never a 404**; sending
+more than one handle is a `400 INVALID_REQUEST`.
 
 | Param | Notes |
 | --- | --- |
 | `agentId` | The `athos_agent_…` id you were given. |
 | `platformAgentId` | Your own id for the rep, as registered. |
-| `npn` | Non-digits are stripped before matching. |
+| `npn` | Non-digits are stripped before matching; what is left must be 4–10 digits or the request is a `400`. |
 | `email` | Matched case-insensitively. |
 | `agencyId` | Restrict to one of your agencies. Combines with a handle by AND. |
 | `limit` | Page size, default `50`, max `100`. |
@@ -218,12 +220,5 @@ broken:
 - They may not begin with `athos_agent_` or `athos_agency_`. Those prefixes are Athos ids, and
   accepting one as yours would let a later session request resolve the wrong rep.
 - Each must be **unique within your account** — one `platformAgentId` per rep, one
-  `platformAgencyId` per agency — because they are what your ids are matched and filtered on.
-
-## Which id attributes a rep's calls
-
-The id you register a rep under is also what attributes their real calls when Athos ingests them
-from a dialer. Attribution tries, in order: the rep's **NPN**, then **your own `platformAgentId`**,
-then their **email**, then their full name. Registering your own rep id is enough when your platform
-is the dialer. If an agency dials through a **third-party** platform whose agent ids you never
-registered, put the rep's email or NPN on file too, so those calls still find them.
+  `platformAgencyId` per agency — because they are what Athos resolves a record by when you send
+  them.

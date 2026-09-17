@@ -44,9 +44,10 @@ codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent other
 ## Which codes you'll see where
 
 - **`POST /agents`**, **`GET /agents`** and **`PATCH /agencies/{agencyId}`** (roster):
-  `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`,
-  `AGENCY_NOT_FOUND` (an `agencyId` that is not yours), and `AGENT_ALREADY_EXISTS` (register only).
-  A lookup that matches nobody is a `200` with an empty `data`, never an error.
+  `INVALID_REQUEST` (including more than one lookup handle on `GET /agents`), `INVALID_API_KEY`,
+  `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, `AGENCY_NOT_FOUND` (an `agencyId` that is
+  not yours), and `AGENT_ALREADY_EXISTS` (register only). A lookup that matches nobody is a `200`
+  with an empty `data`, never an error.
 - **`POST /session`** (mint): `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
   `IP_NOT_ALLOWED`, `TENANT_QUOTA_EXCEEDED`.
 

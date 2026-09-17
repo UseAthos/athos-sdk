@@ -273,8 +273,9 @@ paths:
         Called by **your backend**. Registers a rep with a name and at least one handle — `npn`,
         `email` or your own `platformAgentId`. With no `agencyId` the agent is placed in a **new
         agency named after them**, and both records come back; pass an existing `agencyId` to add
-        the agent to that agency instead. Store the returned `agent.id` and `agency.id` — they are
-        how you refer to both everywhere else.
+        the agent to that agency instead. Sending your own `platformAgencyId` works on every rep:
+        if one of your agencies already carries it the agent joins that agency, otherwise the new
+        agency is created with it.
 
         A rep already registered under any handle you sent answers `409 AGENT_ALREADY_EXISTS`,
         with the existing ids in `error.details`, rather than silently returning them.
@@ -331,10 +332,11 @@ paths:
       summary: Look up agents
       operationId: listAgents
       description: |
-        Called by **your backend**. The "do you have this person?" call: filter by any one handle —
+        Called by **your backend**. The "do you have this person?" call: filter by exactly one handle —
         `agentId`, `platformAgentId`, `npn` or `email` — and get that agent back, or an empty `data`
-        when nobody matches (**never a 404**). With `agencyId` alone it lists that agency's agents;
-        with no filter at all it lists your whole roster. `agencyId` combines with a handle by AND.
+        when nobody matches (**never a 404**). More than one handle is `400 INVALID_REQUEST`. With
+        `agencyId` alone it lists that agency's agents; with no filter at all it lists your whole
+        roster. `agencyId` combines with a handle by AND.
 
         Paged exactly like `GET /calls`: pass `limit` and the opaque `cursor` you were last given,
         stop when `nextCursor` is `null`. Server-to-server only (no CORS).
@@ -356,7 +358,7 @@ paths:
         - name: npn
           in: query
           required: false
-          description: The rep's NPN. Non-digits are stripped before matching.
+          description: The rep's NPN. Non-digits are stripped before matching; what is left must be 4–10 digits or the request is `400 INVALID_REQUEST`.
           schema:
             type: string
         - name: email
@@ -961,9 +963,9 @@ components:
       type: object
       required: [firstName, lastName]
       description: >-
-        At least one of `npn`, `email` or `platformAgentId` is required. `platformAgencyId` may only
-        accompany a registration that creates a new agency — with `agencyId` it is a `400`; set it
-        on an existing agency with `PATCH /agencies/{agencyId}`.
+        At least one of `npn`, `email` or `platformAgentId` is required. `agencyId` and
+        `platformAgencyId` may not be sent together. For every optional field, send it or omit it —
+        `null` is treated as omitted.
       properties:
         firstName:
           type: string
@@ -979,8 +981,7 @@ components:
           description: Stored lowercased.
         npn:
           type: string
-          pattern: "^\\d{4,10}$"
-          description: 4–10 digits after non-digits are stripped.
+          description: Non-digits are stripped first; what is left must be 4–10 digits.
         platformAgentId:
           $ref: "#/components/schemas/PlatformSuppliedId"
         agencyId:
@@ -989,7 +990,11 @@ components:
           maxLength: 200
           description: Put the agent in this existing agency instead of creating one.
         platformAgencyId:
-          $ref: "#/components/schemas/PlatformSuppliedId"
+          allOf:
+            - $ref: "#/components/schemas/PlatformSuppliedId"
+          description: >-
+            Your own id for the agency. If one of your agencies already carries it the agent joins
+            that agency; otherwise the new agency is created with it.
 
     RegisterAgentResponse:
       type: object
@@ -1014,7 +1019,9 @@ components:
 
     UpdateAgencyRequest:
       type: object
-      description: At least one of `name` or `platformAgencyId` is required.
+      description: >-
+        At least one of `name` or `platformAgencyId` is required. Send a field or omit it — `null`
+        is treated as omitted.
       properties:
         name:
           type: string
