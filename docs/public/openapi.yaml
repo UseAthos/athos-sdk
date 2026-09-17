@@ -7,14 +7,16 @@ info:
     url: https://docs.useathos.ai
   description: |
     The Athos **External API** lets a reseller integrate Athos AI roleplay and scored-call data into
-    their own product. It has four endpoints across two auth schemes:
+    their own product. It has seven endpoints across two auth schemes:
 
-    - **API key** (`ath_live_…`) — server-to-server, used by your backend to mint sessions and read calls.
+    - **API key** (`ath_live_…`) — server-to-server, used by your backend to manage your roster of
+      agencies and agents, mint sessions and read calls.
     - **Session token** (a short-lived, single-use JWT your backend mints) — used **only** by the
       browser SDK to redeem a live roleplay session.
 
     All responses carry an `X-Athos-Request-Id` header. Success bodies are returned **raw** (not
-    wrapped). Errors use the envelope `{ "error": { "code", "message", "requestId" } }`.
+    wrapped). Errors use the envelope `{ "error": { "code", "message", "requestId" } }`, plus an
+    optional `details` object on the errors that document one.
 
     > The live voice transport is hidden behind the `@useathos/sdk`. The
     > `connectionTicket`/`connectionUrl` returned by the redeem endpoint are opaque and consumed
@@ -24,6 +26,8 @@ servers:
     description: Production
 
 tags:
+  - name: Roster
+    description: Register and look up your agents; rename your agencies.
   - name: Sessions
     description: Mint and redeem roleplay sessions.
   - name: Calls
@@ -37,8 +41,16 @@ paths:
       operationId: mintSession
       description: |
         Called by **your backend** (server-to-server). Exchanges your API key for a short-lived,
-        single-use **session token** (a JWT, ~5-minute TTL) scoped to one of your reps. Hand the
-        returned `token` to the browser, which passes it to `AthosRoleplay.create({ token })`.
+        single-use **session token** (a JWT, ~5-minute TTL) scoped to one of your **registered**
+        agents. Hand the returned `token` to the browser, which passes it to
+        `AthosRoleplay.create({ token })`.
+
+        Send **exactly one** of the agent's two ids, under the same names the agent object and
+        `GET /agents` use: `platformAgentId` (the id you registered the rep under) or `agentId` (the
+        Athos id registration returned as `agent.id`). Neither or both is `400 INVALID_REQUEST`; an
+        id no agent of yours is registered under is `404 AGENT_NOT_FOUND`. An NPN or an email is not
+        an id — use `GET /agents` to turn one into an id first. The agency is derived from the
+        agent, and its platform-side id from the agency record — the body takes no agency id.
 
         This endpoint does **not** accept cross-origin (CORS) requests — never call it from a browser.
       security:
@@ -50,10 +62,14 @@ paths:
             schema:
               $ref: "#/components/schemas/MintSessionRequest"
             examples:
-              default:
+              byYourId:
+                summary: By the platformAgentId you registered
                 value:
-                  externalUserId: "rep_8842"
-                  externalAgencyId: "agency_chicago"
+                  platformAgentId: "rep_8842"
+              byAthosId:
+                summary: By the Athos agent id registration returned
+                value:
+                  agentId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
       responses:
         "200":
           description: A short-lived single-use session token.
@@ -86,6 +102,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/AgentNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -139,14 +157,24 @@ paths:
       summary: List scored calls
       operationId: listCalls
       description: |
-        Called by **your backend**. Returns **scored** calls for your tenant, newest first
-        (`endedAt` descending), cursor-paginated. This is a manager-history read, not a webhook
-        reconciliation feed.
+        Called by **your backend**. Returns **scored** calls of **one source** for your tenant,
+        newest first (a `roleplay` call by when it ended, a `real_call` by when it started),
+        cursor-paginated. `source` is required — `roleplay` (practice) or `real_call` (an agency's
+        real calls). Scope it to one of your agencies with `agencyId`, or to one rep with
+        `agentId`; the two combine by AND.
 
-        `from` and `to` filter on when the call **ended**, not on when it was scored. Scoring
-        finishes minutes after a call ends, so a call can appear inside a window you have already
-        read past: re-scan an overlapping window on each poll and deduplicate on `id` rather than
-        moving a watermark forward only.
+        Two filter pairs. `agencyId` / `agentId` are the **Athos** ids and are checked against your
+        roster: an id that is not yours answers `404 AGENCY_NOT_FOUND` / `404 AGENT_NOT_FOUND`,
+        never an empty page. `platformAgencyId` / `platformAgentId` are **your own** ids: plain
+        filters that answer an empty page when nothing matches. Name each rep (and each agency) one
+        way per request — both names for one is `400 INVALID_REQUEST`; neither pair is required.
+
+        `from` and `to` filter on the call's own time, not on when it was scored: when it
+        **ended** for a `roleplay` call, when it **started** for a `real_call`. Scoring finishes
+        minutes after a call ends, so a call can appear inside a window you have already read past:
+        when you reconcile, re-scan an overlapping window and deduplicate on `id`. The
+        `call.scored` webhook is the notification; this endpoint is the history and reconciliation
+        read.
 
         Server-to-server only (no CORS).
       security:
@@ -155,34 +183,57 @@ paths:
         - name: from
           in: query
           required: true
-          description: Lower bound (inclusive) on when the call ended. ISO 8601.
+          description: Lower bound (inclusive) on when a `roleplay` call ended / a `real_call` started. ISO 8601.
           schema:
             type: string
             format: date-time
           example: "2026-06-01T00:00:00Z"
+        - name: source
+          in: query
+          required: true
+          description: >-
+            `roleplay` (practice calls) or `real_call` (an agency's real calls). One per request;
+            omitting it is `400 INVALID_REQUEST`.
+          schema:
+            $ref: "#/components/schemas/CallSource"
         - name: to
           in: query
           required: false
-          description: Upper bound (inclusive) on when the call ended. ISO 8601.
+          description: Upper bound (inclusive) on when a `roleplay` call ended / a `real_call` started. ISO 8601.
           schema:
             type: string
             format: date-time
-        - name: source
+        - name: agencyId
           in: query
           required: false
-          description: Filter by call source.
-          schema:
-            $ref: "#/components/schemas/CallSource"
-        - name: externalUserId
-          in: query
-          required: false
-          description: Filter to one of your reps.
+          description: >-
+            All calls for one of your agencies, by its Athos id (`athos_agency_…`). Checked against
+            your roster: another tenant's or an unknown id is `404 AGENCY_NOT_FOUND`.
           schema:
             type: string
-        - name: externalAgencyId
+        - name: agentId
           in: query
           required: false
-          description: Label filter only — never an authorization boundary.
+          description: >-
+            All calls for one rep, by their Athos id (`athos_agent_…`). Checked against your roster:
+            another tenant's or an unknown id is `404 AGENT_NOT_FOUND`. Combined with an `agencyId`
+            the rep is not in, the page is empty.
+          schema:
+            type: string
+        - name: platformAgentId
+          in: query
+          required: false
+          description: >-
+            Filter to one of your reps by the `platformAgentId` you registered them under. An unknown
+            value is an empty page, never an error. Not together with `agentId`.
+          schema:
+            type: string
+        - name: platformAgencyId
+          in: query
+          required: false
+          description: >-
+            Filter to one of your agencies by the `platformAgencyId` you registered it under. A filter
+            only — an unknown value is an empty page. Not together with `agencyId`.
           schema:
             type: string
         - name: limit
@@ -216,6 +267,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/ScopeNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -225,9 +278,10 @@ paths:
       summary: Get call detail
       operationId: getCall
       description: |
-        Called by **your backend**. Returns the full scored detail for one call, including the
-        speaker-labelled `transcript` and the `score` object. Look up by the public `id`
-        (`athos_call_…`) returned in the list response, the webhook `callId`, or the SDK `ended` event.
+        Called by **your backend**. Returns the full scored detail for one call of either source,
+        including the speaker-labelled `transcript`, the `score` object and a short-lived
+        `audioUrl` for the recording. Look up by the public `id` (`athos_call_…`) returned in the
+        list response, the webhook `callId`, or the SDK `ended` event.
 
         A call belonging to a different tenant returns `404 CALL_NOT_FOUND` (existence never leaks
         across tenants). Server-to-server only (no CORS).
@@ -259,6 +313,277 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /agents:
+    post:
+      tags: [Roster]
+      summary: Register an agent
+      operationId: registerAgent
+      description: |
+        Called by **your backend**. Registers a rep with a name and at least one handle — `npn`,
+        `email` or your own `platformAgentId`. With no `agencyId` the agent is placed in a **new
+        agency named after them**, and both records come back; pass an existing `agencyId` to add
+        the agent to that agency instead. Sending your own `platformAgencyId` works on every rep:
+        if one of your agencies already carries it the agent joins that agency, otherwise the new
+        agency is created with it.
+
+        A rep already registered under any handle you sent answers `409 AGENT_ALREADY_EXISTS`,
+        with the existing ids in `error.details`, rather than silently returning them.
+
+        Server-to-server only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterAgentRequest"
+            examples:
+              newAgency:
+                summary: First rep — the agency is created for you
+                value:
+                  firstName: "Dana"
+                  lastName: "Reyes"
+                  email: "dana@acme.test"
+                  platformAgentId: "rep_8842"
+                  platformAgencyId: "acme-7731"
+              existingAgency:
+                summary: Another rep in that agency
+                value:
+                  firstName: "Sam"
+                  lastName: "Ortiz"
+                  npn: "20224801"
+                  agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+      responses:
+        "201":
+          description: The agent, and the agency they belong to.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterAgentResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/AgencyNotFound"
+        "409":
+          $ref: "#/components/responses/AgentAlreadyExists"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [Roster]
+      summary: Look up agents
+      operationId: listAgents
+      description: |
+        Called by **your backend**. The "do you have this person?" call: filter by exactly one handle —
+        `agentId`, `platformAgentId`, `npn` or `email` — and get that agent back, or an empty `data`
+        when nobody matches (**never a 404**). More than one handle is `400 INVALID_REQUEST`. With
+        `agencyId` alone it lists that agency's agents; with no filter at all it lists your whole
+        roster. `agencyId` combines with a handle by AND.
+
+        Paged exactly like `GET /calls`: pass `limit` and the opaque `cursor` you were last given,
+        stop when `nextCursor` is `null`. Server-to-server only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: agentId
+          in: query
+          required: false
+          description: The Athos agent id (`athos_agent_…`) returned at registration.
+          schema:
+            type: string
+        - name: platformAgentId
+          in: query
+          required: false
+          description: Your own id for the rep, as registered.
+          schema:
+            type: string
+        - name: npn
+          in: query
+          required: false
+          description: The rep's NPN. Non-digits are stripped before matching; what is left must be 4–10 digits or the request is `400 INVALID_REQUEST`.
+          schema:
+            type: string
+        - name: email
+          in: query
+          required: false
+          description: The rep's email. Matched case-insensitively.
+          schema:
+            type: string
+        - name: agencyId
+          in: query
+          required: false
+          description: Restrict to one of your agencies. Another tenant's id answers `404 AGENCY_NOT_FOUND`.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50, capped at 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque pagination token from a previous response's `nextCursor`.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The matching agents — possibly none.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAgentsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/AgencyNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /agencies/{agencyId}:
+    patch:
+      tags: [Roster]
+      summary: Update an agency
+      operationId: updateAgency
+      description: |
+        Called by **your backend**. Rename an agency and/or set your own `platformAgencyId` on it —
+        the way an agency that was created for you at a rep's registration gets your id. Send only
+        the fields you are changing; at least one is required.
+
+        An agency belonging to a different tenant returns `404 AGENCY_NOT_FOUND`. Server-to-server
+        only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: agencyId
+          in: path
+          required: true
+          description: The Athos agency id (`athos_agency_…`).
+          schema:
+            type: string
+          example: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgencyRequest"
+      responses:
+        "200":
+          description: The updated agency.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/AgencyNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+webhooks:
+  call.scored:
+    post:
+      tags: [Calls]
+      summary: call.scored — a call reached its outcome
+      operationId: callScoredWebhook
+      # Outbound: no auth scheme applies — the X-Athos-Signature HMAC is the trust boundary.
+      security: []
+      description: |
+        Sent by **Athos to your registered HTTPS URL** when a call reaches its outcome — scored
+        (`success: true`) or not (`success: false`). Fires once per call, for practice calls and for an
+        agency's real calls alike, with the same body. The body is deliberately thin: it names the
+        call; fetch the score and transcript with `GET /calls/{callId}` (only when `success` is true —
+        a call that did not score is not readable).
+
+        Verify `X-Athos-Signature` over the **raw request body** before trusting the event, answer
+        `2xx` within 10 seconds, and deduplicate on `X-Athos-Webhook-Id`: a failed delivery is retried
+        **once, about 5 minutes later**, with the same id and the same body, then dropped —
+        reconcile by polling `GET /calls`.
+      parameters:
+        - name: X-Athos-Signature
+          in: header
+          required: true
+          description: >-
+            `t=<unix-seconds>,v1=<hex>` where `v1 = HMAC-SHA256(your whsec_ secret, "<t>.<raw body>")`.
+            Reject a `t` more than 5 minutes from now.
+          schema:
+            type: string
+          example: "t=1749139254,v1=3a8f1c…e92"
+        - name: X-Athos-Webhook-Id
+          in: header
+          required: true
+          description: Stable across the retry — your idempotency key.
+          schema:
+            type: string
+          example: "wh_2c7e9a04-…"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CallScoredEvent"
+            examples:
+              scored:
+                summary: The call scored
+                value:
+                  event: "call.scored"
+                  success: true
+                  callId: "athos_call_GZ1DjOkZv_VEPoE-CJ8mp"
+                  source: "roleplay"
+                  agentId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
+                  agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+                  platformAgentId: "rep_8842"
+                  platformAgencyId: "acme-7731"
+                  occurredAt: "2026-06-05T18:09:14.000Z"
+                  requestId: "req_b1f0c2d4-7a1e-4c3b-9f2d-0e8a6b5c4d3e"
+              notScored:
+                summary: The call could not be scored
+                value:
+                  event: "call.scored"
+                  success: false
+                  callId: "athos_call_GZ1DjOkZv_VEPoE-CJ8mp"
+                  source: "roleplay"
+                  agentId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
+                  agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+                  platformAgentId: "rep_8842"
+                  platformAgencyId: "acme-7731"
+                  occurredAt: "2026-06-05T18:09:14.000Z"
+                  requestId: "req_b1f0c2d4-7a1e-4c3b-9f2d-0e8a6b5c4d3e"
+                  reason: "SCORING_INCOMPLETE"
+                  reasonMessage: "Athos did not finish processing this call."
+      responses:
+        "2XX":
+          description: >-
+            Acknowledged. Any other status, or no answer within 10 seconds, counts as a failed
+            delivery.
 
 components:
   securitySchemes:
@@ -316,7 +641,7 @@ components:
               value:
                 error:
                   code: "INVALID_REQUEST"
-                  message: "externalUserId is required"
+                  message: "Provide agentId or platformAgentId"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     Unauthorized:
       description: Authentication failed (bad/revoked key, or invalid/expired/used token).
@@ -335,7 +660,7 @@ components:
                   message: "Invalid API key"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     Forbidden:
-      description: Authenticated but not permitted (inactive tenant, or the caller's IP is not allowed).
+      description: Authenticated but not permitted — `TENANT_INACTIVE`, or `IP_NOT_ALLOWED` when an IP allowlist is configured.
       headers:
         X-Athos-Request-Id:
           $ref: "#/components/headers/RequestId"
@@ -378,6 +703,88 @@ components:
                   message: "Call not found"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
 
+    AgencyNotFound:
+      description: No such agency for this tenant (also returned for another tenant's agency).
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agencyNotFound:
+              value:
+                error:
+                  code: "AGENCY_NOT_FOUND"
+                  message: "Agency not found"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    ScopeNotFound:
+      description: >-
+        The `agencyId` or `agentId` you scoped by is not one of yours (unknown, or another
+        tenant's). Never an empty page — that would read as "no calls".
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agencyNotFound:
+              value:
+                error:
+                  code: "AGENCY_NOT_FOUND"
+                  message: "Agency not found"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+            agentNotFound:
+              value:
+                error:
+                  code: "AGENT_NOT_FOUND"
+                  message: "No agent is registered under that id"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    AgentNotFound:
+      description: >-
+        No agent of yours is registered under that id. The mint takes an id only — your
+        `platformAgentId` or the Athos `agent.id` — so an NPN or an email address lands here even when a
+        rep holds it; use `GET /agents` to resolve a handle to an id first.
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agentNotFound:
+              value:
+                error:
+                  code: "AGENT_NOT_FOUND"
+                  message: "No agent is registered under that id"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    AgentAlreadyExists:
+      description: >-
+        A rep is already registered under one of the handles you sent. `details` carries the existing
+        agent's ids and which handle matched, so a retried create resolves in one call.
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agentAlreadyExists:
+              value:
+                error:
+                  code: "AGENT_ALREADY_EXISTS"
+                  message: "An agent with that email is already registered"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+                  details:
+                    agentId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
+                    agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+                    matchedOn: "email"
+
   schemas:
     Error:
       type: object
@@ -394,6 +801,12 @@ components:
               description: Human-readable. Not machine-parsable — branch on `code`, not `message`.
             requestId:
               type: string
+            details:
+              type: object
+              additionalProperties: true
+              description: >-
+                Machine-readable extras, present only on the errors that document one (today:
+                `AGENT_ALREADY_EXISTS`).
 
     ErrorCode:
       type: string
@@ -410,28 +823,88 @@ components:
         - INVALID_REQUEST
         - DRILL_NOT_FOUND
         - CALL_NOT_FOUND
+        - AGENT_NOT_FOUND
+        - AGENT_ALREADY_EXISTS
+        - AGENCY_NOT_FOUND
         - SERVICE_UNAVAILABLE
         - INTERNAL_ERROR
 
+    CallScoredEvent:
+      type: object
+      description: >-
+        The `call.scored` webhook body. Exactly these keys on a scored call; `reason` and
+        `reasonMessage` are added only when `success` is `false`. Never carries a score or a
+        transcript.
+      required:
+        [event, success, callId, source, agentId, agencyId, platformAgentId, platformAgencyId, occurredAt, requestId]
+      properties:
+        event:
+          type: string
+          enum: [call.scored]
+          description: Always `call.scored` in v1.
+        success:
+          type: boolean
+          description: >-
+            `true` when Athos scored the call — fetch it with `GET /calls/{callId}`. `false` when it
+            could not be scored: the call is not readable, and `reason` says why.
+        callId:
+          type: string
+          description: Public call id (`athos_call_…`).
+        source:
+          $ref: "#/components/schemas/CallSource"
+        agentId:
+          type: string
+          description: The Athos id of the rep who took the call (`athos_agent_…`).
+        agencyId:
+          type: string
+          description: The Athos id of their agency (`athos_agency_…`).
+        platformAgentId:
+          type: [string, "null"]
+          description: The id you registered that rep under, or `null` — join on `agentId` then.
+        platformAgencyId:
+          type: [string, "null"]
+          description: The id you registered that agency under, or `null` — join on `agencyId` then.
+        occurredAt:
+          type: string
+          format: date-time
+          description: When the outcome was reached.
+        requestId:
+          type: string
+          description: A delivery support id (`req_…`) — quote it to Athos if a delivery looks wrong.
+        reason:
+          type: string
+          description: >-
+            Only when `success` is `false`. A stable machine code; the list is append-only, so branch
+            on the codes you know and log the rest. Today: `SCORING_INCOMPLETE`.
+          examples: ["SCORING_INCOMPLETE"]
+        reasonMessage:
+          type: string
+          description: Only when `success` is `false`. Human-readable; log it, don't parse it.
+
     CallSource:
       type: string
-      enum: [roleplay, ingestion]
+      enum: [roleplay, real_call]
       description: >
-        The call source. Every call is `roleplay` — a practice call run through the SDK. The enum
-        lists every value the field can carry so a generated client never rejects one.
+        The call source. `roleplay` is a practice call run through the SDK; `real_call` is a real
+        call ingested from an agency's dialer once Athos has switched that agency on.
 
     MintSessionRequest:
       type: object
-      required: [externalUserId]
+      description: >-
+        Exactly one of `agentId` or `platformAgentId`. Neither or both is `400 INVALID_REQUEST`;
+        `null` is treated as omitted.
+      oneOf:
+        - required: [agentId]
+        - required: [platformAgentId]
       properties:
-        externalUserId:
+        agentId:
           type: string
           minLength: 1
-          description: Your stable id for the rep taking the call. Echoed back on calls + webhooks.
-        externalAgencyId:
+          description: The Athos agent id registration returned as `agent.id`.
+        platformAgentId:
           type: string
           minLength: 1
-          description: Optional label for the rep's agency. A filter/label only — never an auth boundary.
+          description: The id you registered the rep under. An NPN or an email is not an id.
 
     MintSessionResponse:
       type: object
@@ -503,32 +976,65 @@ components:
 
     SlimCall:
       type: object
-      description: The list-row shape (no `score`, no transcript).
-      required: [id, source, durationSec]
+      description: The list-row shape (no `score`, no transcript). Every key is always present; nullable ones are `null`.
+      required:
+        [
+          id,
+          source,
+          agencyId,
+          agentId,
+          platformAgentId,
+          platformAgencyId,
+          drillKey,
+          startedAt,
+          endedAt,
+          durationSec,
+          scoredAt,
+        ]
       properties:
         id:
           type: string
           description: Public call id (`athos_call_…`). Never the internal database id.
         source:
-          $ref: "#/components/schemas/CallSource"
-        externalUserId:
+          allOf:
+            - $ref: "#/components/schemas/CallSource"
+          description: >-
+            `roleplay` (a practice call) or `real_call` (a real call). Both sources share this
+            shape; a list page holds one of them.
+        agencyId:
           type: [string, "null"]
-        externalAgencyId:
+          description: The Athos id of the agency this call belongs to (`athos_agency_…`).
+        agentId:
           type: [string, "null"]
+          description: The Athos id of the rep who took the call (`athos_agent_…`).
+        platformAgentId:
+          type: [string, "null"]
+          description: >-
+            The id you registered that rep under, or `null` if you didn't register one — join on
+            `agentId` in that case.
+        platformAgencyId:
+          type: [string, "null"]
+          description: The id you registered that agency under, or `null`.
         drillKey:
           type: [string, "null"]
-          description: The drill key the call practiced (e.g. `ma-full-sale`).
+          description: The drill key the call practiced (e.g. `ma-full-sale`). `null` on a `real_call`.
         startedAt:
           type: [string, "null"]
           format: date-time
+          description: When the call started. The `from` / `to` window and ordering axis for a `real_call`.
         endedAt:
           type: [string, "null"]
           format: date-time
+          description: >-
+            When the call ended — the `from` / `to` window and ordering axis for a `roleplay` call.
+            On a `real_call` it is derived as `startedAt` + `durationSec`.
         durationSec:
           type: integer
+          description: Call length in whole seconds.
         scoredAt:
           type: [string, "null"]
           format: date-time
+          description: When scoring finished.
 
     TranscriptTurn:
       type: object
@@ -540,31 +1046,35 @@ components:
           type: string
           enum: [agent, beneficiary]
           description: >
-            Who spoke. `agent` is the human rep being graded; `beneficiary` is the AI customer they
-            practised against.
+            Who spoke. `agent` is the human rep being graded; `beneficiary` is the customer — the AI
+            persona on a `roleplay` call, the real person on the line on a `real_call`.
         content:
           type: string
           description: What was said on this turn.
         startTime:
           type: number
           description: >
-            Optional. Start of the turn, in seconds from the beginning of the call. Not present on
-            roleplay calls today.
+            Optional. Start of the turn, in seconds from the beginning of the call. Present on
+            `real_call` rows, not on roleplay calls.
         endTime:
           type: number
           description: >
-            Optional. End of the turn, in seconds from the beginning of the call. Not present on
-            roleplay calls today.
+            Optional. End of the turn, in seconds from the beginning of the call. Present on
+            `real_call` rows, not on roleplay calls.
 
     CallDetail:
+      description: >-
+        One shape for both sources: `source` says whether it is a practice or a real call, and
+        everything else reads the same way.
       allOf:
         - $ref: "#/components/schemas/SlimCall"
         - type: object
-          required: [status, transcript, score, createdAt, updatedAt]
+          required: [status, transcript, score, audioUrl, audioUrlExpiresAt, waveform, createdAt, updatedAt]
           properties:
             status:
               type: string
               enum: [scored]
+              description: Always `scored` — only scored calls are readable.
             transcript:
               type: array
               description: >
@@ -576,23 +1086,16 @@ components:
             audioUrl:
               type: [string, "null"]
               description: >
-                The call recording, when there is one. `audioUrlExpiresAt` tells you which kind of
-                URL you got, and it is the field to branch on. When it is set, `audioUrl` is
-                short-lived: play it now, never store or share it, and fetch the call again for a
-                fresh one. When it is `null`, `audioUrl` is not time-limited by Athos — it is
-                either a recording URL stored with the call, or `null`, meaning there is no
-                recording you can play (calls practiced before recording was enabled, and the rare
-                case where a recording exists but could not be prepared for playback; retry the
-                request).
+                A short-lived signed link to Athos's own archived recording (about an hour; the exact
+                expiry is `audioUrlExpiresAt`), or `null` when there is no playable recording. Play
+                it now; never store or share it — fetch the call again for a fresh one. On a
+                `real_call` it is never the dialer's own URL.
             audioUrlExpiresAt:
               type: [string, "null"]
               format: date-time
-              description: >
-                When `audioUrl` stops working, ISO 8601. `null` means `audioUrl` is NOT short-lived
-                — a stored URL with no Athos expiry, or no recording at all. Never assume a
-                non-null `audioUrl` comes with an expiry.
+              description: When `audioUrl` stops working. `null` exactly when `audioUrl` is `null`.
             waveform:
-              description: Reserved; null in v1.
+              description: Reserved; always `null`.
               type: [object, "null"]
             createdAt:
               type: string
@@ -606,13 +1109,15 @@ components:
       additionalProperties: true
       required: [overallScore, summary, feedback]
       description: |
-        The scored result of a roleplay call. `overallScore`, `summary` and `feedback` are always
-        present; `complianceScorecard` is optional. `additionalProperties` is `true` because keys
+        The scored result of a call, practice or real. `overallScore`, `summary` and `feedback` are
+        always present; `complianceScorecard` is optional. `additionalProperties` is `true` because keys
         can be added: read the fields you know and don't assume these are the only ones.
       properties:
         overallScore:
           type: number
-          description: Overall call performance, 0–100 (higher is better).
+          description: >-
+            Overall call performance, 0–100 (higher is better); on a `real_call` the scale runs
+            60–100. `0` means no headline score could be produced.
         summary:
           type: string
           description: >-
@@ -628,21 +1133,18 @@ components:
           type: object
           additionalProperties: true
           description: >
-            The compliance scorecard for the call, section by section. **Optional** — present only on
-            Medicare Advantage drills, and only when the call ran long enough to assess (roughly five
-            minutes). The key is absent, not null, when there is none, so check for its presence
-            rather than assuming it. Section contents are graded content and may gain items over
+            The compliance scorecard for the call, section by section. **Optional** — on practice
+            calls present only on Medicare Advantage drills that ran at least five minutes; on a
+            `real_call` present when the call was assessed for compliance. The key is absent, not
+            null, when there is none. Section contents are graded content and may gain items over
             time; `totalScore` is the one fixed field.
           properties:
             totalScore:
               type: number
               description: >
-                The call's compliance total (higher is better). **Optional, and normally present** —
-                whenever a compliance scorecard is returned this field is populated. It is omitted in
-                the rare case where the underlying total is not a usable number. Treat an absent
-                `totalScore` as **"not assessed" — never as a zero**: a fabricated `0` would be
-                indistinguishable from a genuine failing compliance score, so we omit the field
-                rather than invent one. The section detail is still valid when the total is absent.
+                The call's compliance total (higher is better). Normally present; omitted in the
+                rare case where the underlying total is not a usable number. Treat an absent
+                `totalScore` as "not assessed", never as zero.
       example:
         overallScore: 82
         summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."
@@ -661,3 +1163,129 @@ components:
         nextCursor:
           type: [string, "null"]
           description: Pass as `cursor` to fetch the next page. `null` on the last page.
+
+    PlatformSuppliedId:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: >-
+        Your own id for the record. Must not begin with `athos_agent_` or `athos_agency_` — those
+        are Athos ids. Each is unique within your account: a `platformAgentId` already registered
+        is `409 AGENT_ALREADY_EXISTS`; a `platformAgencyId` you already registered **joins** that
+        agency at registration, and only `PATCH /agencies/{agencyId}` refuses another agency's
+        value (`400 INVALID_REQUEST`).
+
+    Agent:
+      type: object
+      required: [id, firstName, lastName, email, npn, platformAgentId, agencyId, createdAt]
+      properties:
+        id:
+          type: string
+          description: The Athos agent id (`athos_agent_…`). Store it.
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: [string, "null"]
+          description: Lowercased. `null` when the rep was registered without one.
+        npn:
+          type: [string, "null"]
+          description: Digits only, 4–10 of them. `null` when the rep was registered without one.
+        platformAgentId:
+          type: [string, "null"]
+          description: Your own id for the rep. `null` when the rep was registered without one.
+        agencyId:
+          type: string
+          description: The Athos id (`athos_agency_…`) of the agency this agent belongs to.
+        createdAt:
+          type: string
+          format: date-time
+
+    Agency:
+      type: object
+      required: [id, name, platformAgencyId, createdAt]
+      properties:
+        id:
+          type: string
+          description: The Athos agency id (`athos_agency_…`). Store it.
+        name:
+          type: string
+          description: Defaults to the first registered rep's full name. Rename with `PATCH /agencies/{agencyId}`.
+        platformAgencyId:
+          type: [string, "null"]
+          description: Your own id for the agency, or `null` if you never set one.
+        createdAt:
+          type: string
+          format: date-time
+
+    RegisterAgentRequest:
+      type: object
+      required: [firstName, lastName]
+      description: >-
+        At least one of `npn`, `email` or `platformAgentId` is required. `agencyId` and
+        `platformAgencyId` may not be sent together. For every optional field, send it or omit it —
+        `null` is treated as omitted.
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Stored lowercased.
+        npn:
+          type: string
+          description: Non-digits are stripped first; what is left must be 4–10 digits.
+        platformAgentId:
+          $ref: "#/components/schemas/PlatformSuppliedId"
+        agencyId:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Put the agent in this existing agency instead of creating one.
+        platformAgencyId:
+          allOf:
+            - $ref: "#/components/schemas/PlatformSuppliedId"
+          description: >-
+            Your own id for the agency. If one of your agencies already carries it the agent joins
+            that agency; otherwise the new agency is created with it.
+
+    RegisterAgentResponse:
+      type: object
+      required: [agent, agency]
+      properties:
+        agent:
+          $ref: "#/components/schemas/Agent"
+        agency:
+          $ref: "#/components/schemas/Agency"
+
+    ListAgentsResponse:
+      type: object
+      required: [data, nextCursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Agent"
+        nextCursor:
+          type: [string, "null"]
+          description: Pass as `cursor` to fetch the next page. `null` on the last page.
+
+    UpdateAgencyRequest:
+      type: object
+      description: >-
+        At least one of `name` or `platformAgencyId` is required. Send a field or omit it — `null`
+        is treated as omitted.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        platformAgencyId:
+          $ref: "#/components/schemas/PlatformSuppliedId"

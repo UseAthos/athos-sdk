@@ -32,5 +32,7 @@ describe("public surface", () => {
 
   it("error codes remain exported alongside the catalog", () => {
     expect(ATHOS_ERROR_CODES).toContain("DRILL_NOT_FOUND");
+    // The mint's registered-agent gate answers this for an unregistered id.
+    expect(ATHOS_ERROR_CODES).toContain("AGENT_NOT_FOUND");
   });
 });

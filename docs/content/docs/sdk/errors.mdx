@@ -76,10 +76,11 @@ channel:
   [error reference](/reference/errors#a-failed-redemption-usually-spends-the-token).
 </Callout>
 
-`TENANT_INACTIVE` and `TENANT_QUOTA_EXCEEDED` never reach the browser. Both are `403`s on your
-backend's server-to-server calls — `TENANT_QUOTA_EXCEEDED` when you [mint a
-token](/backend/minting-tokens), `TENANT_INACTIVE` on any API-key call — so handle them there, not
-on the SDK's `error` channel.
+`AGENT_NOT_FOUND`, `TENANT_INACTIVE` and `TENANT_QUOTA_EXCEEDED` never reach the browser. All three
+come back on your backend's server-to-server calls — `AGENT_NOT_FOUND` (`404`) and
+`TENANT_QUOTA_EXCEEDED` (`403`) when you [mint a token](/backend/minting-tokens) for a rep who is not
+registered or once the allowance is spent, `TENANT_INACTIVE` (`403`) on any API-key call — so handle
+them there, not on the SDK's `error` channel.
 
 <Callout type="info">
   The token-lifecycle codes (`INVALID_TOKEN`, `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`) almost always

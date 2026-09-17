@@ -1,5 +1,11 @@
 {
   "title": "Backend",
   "defaultOpen": true,
-  "pages": ["minting-tokens", "webhooks", "reading-calls"]
+  "pages": [
+    "managing-agencies-and-agents",
+    "minting-tokens",
+    "webhooks",
+    "reading-calls",
+    "real-call-analysis"
+  ]
 }

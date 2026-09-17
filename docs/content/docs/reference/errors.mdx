@@ -18,6 +18,9 @@ change.
 
 The `requestId` matches the `X-Athos-Request-Id` response header — quote it in support tickets.
 
+A few errors also carry a `details` object with machine-readable extras. It is present only on the
+codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent otherwise.
+
 ## Codes
 
 | `code` | HTTP | Meaning |
@@ -31,25 +34,34 @@ The `requestId` matches the `X-Athos-Request-Id` response header — quote it in
 | `TOKEN_ALREADY_USED` | 401 | The single-use session token was already redeemed. |
 | `IP_NOT_ALLOWED` | 403 | The caller's IP is not on the allowlist (if one is configured). |
 | `TENANT_INACTIVE` | 403 | Your tenant is inactive. |
-| `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant's monthly usage allowance is spent. It clears at the start of the next calendar month. |
+| `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant's monthly usage allowance is spent. Not retryable: it clears at the start of the next calendar month, or when Athos raises the allowance. |
 | `CALL_NOT_FOUND` | 404 | No such call for your tenant (also returned for another tenant's call). |
-| `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable. Transient, but see the note below before retrying. |
+| `AGENT_NOT_FOUND` | 404 | No agent of yours is registered under that id — the id you minted with, or the `agentId` you filtered `GET /calls` by. Register the rep first, or resolve an NPN or email to an id with `GET /agents`. |
+| `AGENCY_NOT_FOUND` | 404 | No such agency for your tenant (also returned for another tenant's agency) — on `PATCH /agencies/{agencyId}`, `GET /agents?agencyId=` and `GET /calls?agencyId=`. Check the `agencyId` you stored. |
+| `AGENT_ALREADY_EXISTS` | 409 | A rep is already registered under one of the handles you sent. `details` carries `{ agentId, agencyId, matchedOn }` — use those ids instead of retrying. |
+| `SERVICE_UNAVAILABLE` | 503 | No persona is available for the drill right now. Transient, but the attempt spent the session token — see below. |
 | `INTERNAL_ERROR` | 500 | An unexpected error. Retry; if it persists, contact Athos with the `requestId`. |
 
 ## Which codes you'll see where
 
+- **`POST /agents`**, **`GET /agents`** and **`PATCH /agencies/{agencyId}`** (roster):
+  `INVALID_REQUEST` (including more than one lookup handle on `GET /agents`), `INVALID_API_KEY`,
+  `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, `AGENCY_NOT_FOUND` (an `agencyId` that is
+  not yours), and `AGENT_ALREADY_EXISTS` (register only). A lookup that matches nobody is a `200`
+  with an empty `data`, never an error.
 - **`POST /session`** (mint): `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
-  `IP_NOT_ALLOWED`, `TENANT_QUOTA_EXCEEDED`.
-
-  `TENANT_QUOTA_EXCEEDED` means your tenant's monthly usage allowance is spent. Retrying will not
-  clear it: it lifts at the start of the next calendar month, or when your Athos representative
-  raises the allowance.
+  `IP_NOT_ALLOWED`, `TENANT_QUOTA_EXCEEDED` (no token is issued; not retryable until the allowance
+  resets), `AGENT_NOT_FOUND` (the id is not a registered rep's `platformAgentId` or Athos `agentId`
+  — an NPN or an email address lands here too).
 - **`POST /roleplay/session`** (SDK redeem): `INVALID_REQUEST`, `DRILL_NOT_FOUND`, `INVALID_TOKEN`,
   `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
   drill right now). These surface through the SDK's [`error` event](/sdk/errors). Most of them
   **spend the session token** — see [below](#a-failed-redemption-usually-spends-the-token).
-- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only), `INVALID_API_KEY`,
-  `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).
+- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only — a missing or unknown
+  `source`, a bad cursor, or the same rep / agency named both ways), `INVALID_API_KEY`,
+  `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, `AGENCY_NOT_FOUND` / `AGENT_NOT_FOUND`
+  (list only — an `agencyId` / `agentId` that is not yours), and `CALL_NOT_FOUND` (detail only). The
+  `platformAgencyId` / `platformAgentId` filters never error: an unknown value is an empty page.
 
 ## A failed redemption usually spends the token
 

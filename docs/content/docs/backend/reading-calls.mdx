@@ -1,26 +1,38 @@
 ---
 title: Reading calls
-description: List scored calls and fetch full detail, including the score object.
+description: List an agency's or a rep's scored calls — practice or real, one source per request — and read one call's transcript, score and recording.
 ---
 
-Two endpoints, both server-to-server with your API key: a slim **list** for history views, and a
-full **detail** for one call's transcript and score.
+Two endpoints, both server-to-server with your API key: a slim **list** that answers "all calls for
+this agency" and "all calls for this rep", and a full **detail** for one call's transcript, score and
+recording. Practice calls (`roleplay`) and real calls (`real_call`) have **the same shape**, and you
+read them **one source at a time**: `source` is required on the list.
 
 ## List — `GET /v1/calls`
 
-Returns **scored** calls for your tenant, newest first (`endedAt` descending), cursor-paginated.
+Returns **scored** calls of **one source** for your tenant, newest first (`roleplay` by `endedAt`,
+`real_call` by `startedAt`), cursor-paginated.
 
 **Query parameters**
 
 | Param | Required | Notes |
 | --- | --- | --- |
-| `from` | ✅ | Lower bound (ISO 8601) on when the call **ended**. |
-| `to` | | Upper bound (ISO 8601) on when the call **ended**. |
-| `source` | | Filter by source. Every call is `roleplay` today. |
-| `externalUserId` | | Filter to one rep. |
-| `externalAgencyId` | | Filter to one agency (a label, never an auth boundary). |
+| `from` | ✅ | Lower bound (ISO 8601) on when a `roleplay` call **ended** / a `real_call` **started**. |
+| `source` | ✅ | `roleplay` (practice calls) or `real_call` (an agency's [real calls](/backend/real-call-analysis)). One per request; omitting it is `400 INVALID_REQUEST`. |
+| `to` | | Upper bound (ISO 8601), same axis as `from`. |
+| `agencyId` | | **All calls for one agency**, by its Athos id (`athos_agency_…`). Checked against your roster: an unknown or foreign id is `404 AGENCY_NOT_FOUND`. |
+| `agentId` | | **All calls for one rep**, by their Athos id (`athos_agent_…`). Checked against your roster: an unknown or foreign id is `404 AGENT_NOT_FOUND`. With an `agencyId` the rep is not in, the page is empty. |
+| `platformAgentId` | | One rep, by the `platformAgentId` you registered them under. An unknown value is an empty page. Not together with `agentId`. |
+| `platformAgencyId` | | One agency, by the `platformAgencyId` you registered it under. An unknown value is an empty page. Not together with `agencyId`. |
 | `limit` | | Page size, default `50`, max `100`. |
 | `cursor` | | Opaque token from a previous `nextCursor`. |
+
+<Callout type="info">
+  **Two filter pairs.** `agencyId` / `agentId` are Athos ids and are **checked**: an agency or rep
+  that is not yours is a `404`, never an empty page. `platformAgencyId` / `platformAgentId` are your
+  own ids and are plain filters: an unknown value is an empty page. Name each rep and each agency
+  one way per request — both names for one is `400 INVALID_REQUEST`. Neither pair is required.
+</Callout>
 
 **Response** — a slim row per call (no score, no transcript):
 
@@ -30,8 +42,10 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
     {
       "id": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
       "source": "roleplay",
-      "externalUserId": "rep_8842",
-      "externalAgencyId": "agency_chicago",
+      "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+      "agentId": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
+      "platformAgentId": "rep_8842",
+      "platformAgencyId": "acme-7731",
       "drillKey": "ma-full-sale",
       "startedAt": "2026-06-05T14:39:40.295Z",
       "endedAt": "2026-06-05T14:49:52.295Z",
@@ -43,71 +57,87 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 }
 ```
 
-`nextCursor` is `null` on the last page. Pass it back as `cursor` to page through.
+Every key is always present. `platformAgentId` / `platformAgencyId` are `null` when you never
+registered one — join on `agentId` / `agencyId` then (see [Core concepts](/concepts#two-id-families)).
+`drillKey` is `null` on a `real_call`. Page with `cursor` and the same `source`, as described in
+[Paging](/backend/managing-agencies-and-agents#paging-once).
 
 <Callout type="warn">
-  **`from` and `to` filter on when the call *ended*, not on when it was scored**, and results come
-  back newest-ended first. Scoring finishes some minutes after the call ends, so a call can become
-  readable inside a window you have already read past. A watermark that only ever moves forward will
-  silently skip those calls — on each poll, re-scan a window that overlaps the last one (an hour is
-  plenty) and deduplicate on `id`.
+  **`from` and `to` filter on the call's own time, not on when it was scored** — when it *ended*
+  for a `roleplay` call, when it *started* for a `real_call` — and results are ordered on that same
+  axis. Scoring finishes some minutes after a call ends, so a call can become readable inside a
+  window you have already read past. When you reconcile, re-scan a window that overlaps the last one
+  by an hour plus the longest real call you expect, and deduplicate on `id`.
 </Callout>
 
 <Tabs items={['curl', 'Node']}>
 <Tab value="curl">
 ```bash
+# every practice call for one agency (source=real_call for its real calls)
 curl -G https://app.useathos.ai/api/external/v1/calls \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
   --data-urlencode "from=2026-06-01T00:00:00Z" \
+  --data-urlencode "source=roleplay" \
+  --data-urlencode "agencyId=athos_agency_V1StGXR8Z5jdHi6B-myT" \
   --data-urlencode "limit=50"
 ```
 </Tab>
 <Tab value="Node">
 ```ts
-async function* allCalls(from: string) {
+async function* callsFor(
+  from: string,
+  source: 'roleplay' | 'real_call',
+  scope: { agencyId?: string; agentId?: string },
+) {
   let cursor: string | null = null;
   do {
     const url = new URL('https://app.useathos.ai/api/external/v1/calls');
     url.searchParams.set('from', from);
+    url.searchParams.set('source', source);
+    if (scope.agencyId) url.searchParams.set('agencyId', scope.agencyId);
+    if (scope.agentId) url.searchParams.set('agentId', scope.agentId);
     if (cursor) url.searchParams.set('cursor', cursor);
     const r = await fetch(url, { headers: { Authorization: `Bearer ${process.env.ATHOS_API_KEY}` } });
+    if (r.status === 404) throw new Error((await r.json()).error.code); // AGENCY_NOT_FOUND / AGENT_NOT_FOUND
     const page = await r.json();
     yield* page.data;
     cursor = page.nextCursor;
   } while (cursor);
 }
 
-for await (const call of allCalls('2026-06-01T00:00:00Z')) {
+// one rep's practice calls, newest first — a second loop with 'real_call' reads their real calls
+for await (const call of callsFor('2026-06-01T00:00:00Z', 'roleplay', { agentId: rep.agentId })) {
   console.log(call.id, call.drillKey, call.scoredAt);
 }
 ```
 </Tab>
 </Tabs>
 
-<Callout type="info">
-  `GET /v1/calls` is a history read — it returns scored calls only, not in-progress ones. Use the
-  [webhook](/backend/webhooks) as your push signal and this endpoint as the backstop.
-</Callout>
+`GET /v1/calls` is a history read — scored calls only, never in-progress ones. The
+[`call.scored` webhook](/backend/webhooks) is your notification; use this endpoint to render history
+and to reconcile.
 
 ## Detail — `GET /v1/calls/:callId`
 
-Look up one call by its public `id` (from a list row, a webhook `callId`, or the SDK `ended` event).
-A call from another tenant returns `404 CALL_NOT_FOUND`.
+Look up one call of either source by its public `id` (from a list row, a webhook `callId`, or the
+SDK `ended` event). An unknown id and another tenant's id both answer `404 CALL_NOT_FOUND`.
 
 ```bash
 curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ8mp \
   -H "Authorization: Bearer $ATHOS_API_KEY"
 ```
 
-**Response** (roleplay; abridged):
+**Response** (roleplay; `complianceScorecard` abridged):
 
 ```json
 {
   "id": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
   "source": "roleplay",
   "status": "scored",
-  "externalUserId": "rep_8842",
-  "externalAgencyId": "agency_chicago",
+  "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+  "agentId": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
+  "platformAgentId": "rep_8842",
+  "platformAgencyId": "acme-7731",
   "drillKey": "ma-full-sale",
   "startedAt": "2026-06-05T14:39:40.295Z",
   "endedAt": "2026-06-05T14:49:52.295Z",
@@ -121,7 +151,7 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
     "overallScore": 82,
     "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
     "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan.",
-    "complianceScorecard": { "totalScore": 74, "…": "section-by-section detail" }
+    "complianceScorecard": { "totalScore": 74 }
   },
   "audioUrl": "https://…/athos_call_GZ1DjOkZv_VEPoE-CJ8mp.ogg?X-Amz-Expires=3600&X-Amz-Signature=…",
   "audioUrlExpiresAt": "2026-06-05T15:50:29.005Z",
@@ -131,63 +161,50 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
 }
 ```
 
+The detail is a list row plus `status` (always `"scored"`), `transcript`, `score`, `audioUrl`,
+`audioUrlExpiresAt`, `waveform` (reserved, always `null`), `createdAt` and `updatedAt`.
+
 ## The `transcript`
 
-A flat list of turns, in the order they were spoken:
-
-```json
-[
-  { "role": "agent", "content": "Hi, this is Sam from the benefits line." },
-  { "role": "beneficiary", "content": "Yeah, I saw something about the grocery card." }
-]
-```
+A flat list of turns, in the order they were spoken. The same shape for both sources.
 
 | Field | Type | What it is |
 | --- | --- | --- |
-| `role` | `"agent"` or `"beneficiary"` | Who spoke. **`agent` is your rep** — the human being graded. **`beneficiary` is the AI customer** they practised against. |
+| `role` | `"agent"` or `"beneficiary"` | Who spoke. **`agent` is your rep** — the human being graded. **`beneficiary` is the customer** — the AI persona on a practice call, the real person on the line on a `real_call`. |
 | `content` | string | What was said on that turn. |
-| `startTime`, `endTime` | number *(optional)* | Turn boundaries in seconds from the start of the call. Not present on roleplay calls today — read them defensively. |
-
-Get those two the wrong way round and every speaker label in your UI is inverted.
-
-## Recording playback
-
-**Branch on `audioUrlExpiresAt`, not on `audioUrl`.** When `audioUrlExpiresAt` is set, `audioUrl` is
-a **short-lived signed URL** — it plays for about an hour and then stops working, and
-`audioUrlExpiresAt` tells you exactly when. Use it directly in an `<audio>` element or a download
-link, but **do not store it** in your database and do not email or embed it anywhere long-lived:
-when you need it again, fetch the call again and you get a fresh one.
-
-When `audioUrlExpiresAt` is `null`, the URL is not time-limited by us. Either the call carries a
-stored recording URL (older calls do), or `audioUrl` is `null` too and there is nothing to play — a
-call practised before recording was enabled, or the rare case where a recording exists but could not
-be prepared for playback, which a later request usually resolves.
+| `startTime`, `endTime` | number *(optional)* | Turn boundaries in seconds from the start of the call. Present on `real_call` turns only. |
 
 ## The `score` object
 
-For a **roleplay** call, `score` always has three fields, plus one optional:
-
 | Field | Type | What it is |
 | --- | --- | --- |
-| `overallScore` | number | Overall call performance, **0–100** (higher is better). |
+| `overallScore` | number | Overall call performance, **0–100** (higher is better); on a `real_call` the scale runs **60–100**. `0` means no headline score could be produced. |
 | `summary` | string | A short natural-language summary of the call. |
 | `feedback` | string | Coaching feedback for the rep. |
 | `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, headed by a numeric `totalScore`. |
 
-`summary` and `feedback` are always present, but either can be an **empty string**: on a very short
-call, or when the analysis step didn't complete, Athos has no prose to give even though the call
-scored.
+`summary` and `feedback` are always present but either can be an **empty string** — on a very short
+call, or when the analysis step did not complete, the call still scores but has no prose.
 
 <Callout type="info">
-  **`complianceScorecard` is optional — check for it, don't assume it.** It appears on Medicare
-  Advantage drills only, and only when the call ran long enough to assess (roughly five minutes); a
-  short MA call and every Final Expense call simply omit the key. It is *absent*, not `null`, so
-  `if ('complianceScorecard' in call.score)` (or a truthiness check) is the right guard. Its inner
-  sections are graded content and may gain items over time — read `totalScore` and treat the rest as
-  display detail.
-
-  `totalScore` itself is normally present whenever the scorecard is, but it is **optional too**: in
-  the rare case where the underlying total is not a usable number we leave the field out rather than
-  send a `0`, because a fabricated zero is indistinguishable from a genuine failing compliance score.
-  Treat an absent `totalScore` as *not assessed*, never as a zero; the section detail is still valid.
+  **`complianceScorecard` is optional — check for it, don't assume it.** On practice calls it appears
+  on Medicare Advantage drills only, and only when the call ran at least five minutes; a shorter MA
+  call and every Final Expense call omit the key. On a real call it is present when the call was
+  assessed for compliance. When there is none the key is **absent**, not `null`. Its sections are
+  graded content and may gain items over time — read `totalScore` and treat the rest as display
+  detail. `totalScore` is itself omitted in the rare case where the underlying total is not a usable
+  number; treat an absent `totalScore` as *not assessed*, never as zero.
 </Callout>
+
+## Recording playback
+
+`audioUrl` is either a **short-lived signed link** to Athos's own archived recording — with
+`audioUrlExpiresAt` set to the moment it stops working, about an hour after the request — or
+`null`, in which case `audioUrlExpiresAt` is `null` too and there is nothing to play (a practice
+call recorded before archiving was enabled, a real call whose recording was not archived, or the
+rare case where a recording exists but could not be prepared, which a later request usually
+resolves).
+
+Use the link directly in an `<audio>` element or a download link. **Do not store it**, email it or
+embed it anywhere long-lived: when you need it again, fetch the call again and you get a fresh one.
+On a `real_call` it is never the dialer's own recording URL.

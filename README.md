@@ -27,8 +27,20 @@ npm install @useathos/sdk
 
 ## Quickstart — the 5-line integration
 
-The reseller backend mints a short-lived, single-use token (`getAthosToken()` is **your** endpoint
-that calls Athos server-side). The browser never sees an Athos API key.
+Your backend mints a short-lived, single-use session token for a **registered** rep and hands it to
+the browser. The browser never sees your Athos API key.
+
+```bash
+# backend — exactly one of platformAgentId (the id you registered the rep under) or agentId
+curl -X POST https://app.useathos.ai/api/external/v1/session \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"platformAgentId":"rep_8842"}'
+# → { "token": "eyJhbGci…", "expiresAt": "2026-06-05T18:05:00.000Z" }
+```
+
+`getAthosToken()` below is **your** endpoint that makes that call server-side. Registering reps and
+the full backend loop are covered at [docs.useathos.ai](https://docs.useathos.ai/quickstart).
 
 ```ts
 import { AthosRoleplay } from "@useathos/sdk";
@@ -139,9 +151,10 @@ redeemed, so only `INVALID_TOKEN`, `TOKEN_EXPIRED` and `INVALID_REQUEST` leave i
 from anything else by minting a new token, not by replaying the same request.
 
 The full shared taxonomy (`ATHOS_ERROR_CODES`) also includes codes returned to your **backend** by
-other Athos REST endpoints, never to the browser: `INVALID_API_KEY`, `API_KEY_REVOKED`,
-`IP_NOT_ALLOWED`, `TENANT_INACTIVE`, `TENANT_QUOTA_EXCEEDED` and `CALL_NOT_FOUND`. The SDK's
-roleplay-session call surfaces the subset above.
+the other Athos REST endpoints, never to the browser: `INVALID_API_KEY`, `API_KEY_REVOKED`,
+`IP_NOT_ALLOWED`, `TENANT_INACTIVE`, `TENANT_QUOTA_EXCEEDED`, `CALL_NOT_FOUND`, `AGENT_NOT_FOUND`,
+`AGENT_ALREADY_EXISTS` and `AGENCY_NOT_FOUND`. The SDK's roleplay-session call surfaces the subset
+above.
 
 ```ts
 import { AthosRoleplayError } from "@useathos/sdk";

@@ -18,7 +18,7 @@ Authorization: Bearer ath_live_xxxxxxxxxxxxxxxxxxxxxxxx
 - **You receive it from Athos**, shown **once** at creation. Store it as a backend secret
   (`ATHOS_API_KEY`). It is never retrievable again — if you lose it, rotate.
 - It is the **tenant boundary**: it scopes every read to your data.
-- **Never expose it to a browser.** The three API-key endpoints reject cross-origin requests
+- **Never expose it to a browser.** The six API-key endpoints reject cross-origin requests
   (see [CORS](#cors)).
 
 <Callout type="warn">
@@ -48,8 +48,9 @@ exactly **one** action: the SDK redeeming a live roleplay call.
 - **Lifetime:** ~5 minutes. Mint it when the rep clicks "start", not on page load.
 - **Single-use:** it is consumed the moment the SDK connects. A second redemption returns
   `401 TOKEN_ALREADY_USED`.
-- **Scope:** it carries the `externalUserId` (and optional `externalAgencyId`) you minted it with.
-  It cannot read calls, usage, or anything else — only start a session.
+- **Scope:** it is minted for one **registered agent** — you pass that rep's `platformAgentId` or
+  Athos `agentId`, and an unregistered id answers `404 AGENT_NOT_FOUND`. The token cannot read
+  calls, usage, or anything else — only start a session for that rep.
 
 Because it's short-lived and single-use, there's no refresh flow and nothing to revoke. See
 [minting tokens](/backend/minting-tokens) for the request shape.
@@ -70,6 +71,9 @@ server-to-server.
 | `POST /v1/roleplay/session` | the SDK (browser) | ✅ allowed |
 | `GET /v1/calls` | your backend | ❌ rejected |
 | `GET /v1/calls/:id` | your backend | ❌ rejected |
+| `POST /v1/agents` | your backend | ❌ rejected |
+| `GET /v1/agents` | your backend | ❌ rejected |
+| `PATCH /v1/agencies/:agencyId` | your backend | ❌ rejected |
 
 If you try to call a backend endpoint from a browser, it will fail CORS — that's intentional. Put
 those calls behind your own backend.

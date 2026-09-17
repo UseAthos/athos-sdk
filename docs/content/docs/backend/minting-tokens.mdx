@@ -6,6 +6,10 @@ description: Exchange your API key for a short-lived session token the SDK can u
 The browser SDK can't hold your API key, so your backend mints a short-lived, single-use **session
 token** for it. Expose this as your own endpoint that your authenticated frontend calls.
 
+A token is minted for a **registered agent**. Register each rep once with
+[`POST /v1/agents`](/backend/managing-agencies-and-agents) before their first practice call, then
+mint with either of the agent's two ids.
+
 ## `POST /v1/session`
 
 ```http
@@ -16,19 +20,29 @@ Content-Type: application/json
 
 **Request body**
 
+Exactly **one** of:
+
 <TypeTable
   type={{
-    externalUserId: {
+    platformAgentId: {
       type: 'string',
-      required: true,
-      description: 'Your stable id for the rep taking the call. Echoed back on calls and webhooks.',
+      description:
+        'The id you registered the rep under. An NPN or an email address is not an id — an unregistered value is 404 AGENT_NOT_FOUND.',
     },
-    externalAgencyId: {
+    agentId: {
       type: 'string',
-      description: 'Optional label for the rep\'s agency/team. A filter only — never an auth boundary.',
+      description: 'The Athos agent id registration returned as agent.id.',
     },
   }}
 />
+
+Sending neither, or both, is `400 INVALID_REQUEST`. `null` is treated as omitted.
+
+<Callout type="info">
+  The mint takes an **id** and nothing else — no agency id (the agency is derived from the agent),
+  and no NPN or email. To mint from an NPN or an email, resolve it to an id first with
+  [`GET /v1/agents`](/backend/managing-agencies-and-agents#look-up--get-v1agents).
+</Callout>
 
 **Response** `200 OK`
 
@@ -50,7 +64,7 @@ you decide which rep the token represents.
 curl -X POST https://app.useathos.ai/api/external/v1/session \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"externalUserId":"rep_8842","externalAgencyId":"agency_chicago"}'
+  -d '{"platformAgentId":"rep_8842"}'
 ```
 </Tab>
 <Tab value="Node">
@@ -64,8 +78,7 @@ app.post('/athos/token', requireAuth, async (req, res) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      externalUserId: req.user.id,          // never trust a client-supplied id
-      externalAgencyId: req.user.agencyId,
+      platformAgentId: req.user.id,         // the id you registered the rep under; never client-supplied
     }),
   });
   const body = await r.json();
@@ -85,8 +98,7 @@ def athos_token():
         "https://app.useathos.ai/api/external/v1/session",
         headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
         json={
-            "externalUserId": current_user.id,        # never trust a client-supplied id
-            "externalAgencyId": current_user.agency_id,
+            "platformAgentId": current_user.id,       # the id you registered the rep under; never client-supplied
         },
         timeout=10,
     )
@@ -96,8 +108,9 @@ def athos_token():
 </Tabs>
 
 <Callout type="warn">
-  Always derive `externalUserId` from your **authenticated session**, not from the request body. A
-  token scopes a live call to that rep; letting the client choose it lets one rep impersonate another.
+  Always derive the id you mint with from your **authenticated session**, not from the request body.
+  A token scopes a live call to that rep; letting the client choose it lets one rep impersonate
+  another.
 </Callout>
 
 ## Rules of the road
@@ -112,15 +125,15 @@ def athos_token():
 
 | Status | `code` | Cause |
 | --- | --- | --- |
-| 400 | `INVALID_REQUEST` | Missing/blank `externalUserId`. |
+| 400 | `INVALID_REQUEST` | Neither or both of `agentId` / `platformAgentId`, or a blank one. |
 | 401 | `INVALID_API_KEY` | Bad or missing API key. |
 | 401 | `API_KEY_REVOKED` | The key was revoked — rotate. |
 | 403 | `TENANT_INACTIVE` | Your tenant is inactive. |
 | 403 | `TENANT_QUOTA_EXCEEDED` | Your tenant's monthly usage allowance is spent. |
+| 404 | `AGENT_NOT_FOUND` | No agent of yours is registered under that id. Register the rep first, or resolve an NPN or email to an id with `GET /v1/agents`. |
 
-Minting can fail with `403 TENANT_QUOTA_EXCEEDED` when your tenant's monthly allowance is spent. No
-token is issued, and retrying will not help — the allowance lifts at the start of the next calendar
-month. Surface it to the rep as "practice is unavailable this month" rather than as a retryable
-error, and contact your Athos representative to raise it.
-
-Full envelope and list: [error reference](/reference/errors).
+`TENANT_QUOTA_EXCEEDED` issues no token and is not retryable — the allowance lifts at the start of
+the next calendar month, or when your Athos contact raises it. It is measured in call minutes across
+your whole tenant, practice and [real calls](/backend/real-call-analysis) alike. Surface it to the
+rep as "practice is unavailable this month". Full envelope and list:
+[error reference](/reference/errors).

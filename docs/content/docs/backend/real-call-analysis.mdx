@@ -1,0 +1,55 @@
+---
+title: Real-call analysis
+description: Have an agency's real dialer calls scored by Athos, delivered by the same webhook and readable from the same endpoints as practice calls.
+---
+
+Athos scores two kinds of call: **practice calls** your reps run through the SDK, and **real calls**
+an agency's reps make on their dialer. Real calls are ingested from the dialer, scored by the same
+engine, and surface in this API exactly like practice calls — same `call.scored` webhook, same
+`GET /v1/calls` and `GET /v1/calls/:callId`, same ids, same shapes. They carry
+`source: "real_call"`, and you list them with `GET /v1/calls?source=real_call`.
+
+## Switching it on
+
+There is nothing for your code to call. Real-call analysis is **arranged with Athos, per agency**:
+tell your Athos contact which agency and which dialer, and an Athos operator sets up the dialer
+connection for that agency and hands over the webhook URL and secret the dialer needs. Bringing a
+second agency onto real calls is a second arrangement.
+
+Once an agency is live, its reps' real calls appear in `GET /v1/calls?source=real_call` and fire
+`call.scored` with the same signed body, once per call (`success: false` when the call was kept but
+could not be scored — see [Webhooks](/backend/webhooks)). Their minutes count toward the same monthly
+allowance as practice calls (the one `TENANT_QUOTA_EXCEEDED` reports). An agency that has not been
+switched on ingests nothing, is scored for nothing and is billed for nothing.
+
+## Register your reps first
+
+**A real call from a rep you never registered is dropped**, not scored. Register reps before the
+dialer goes live. Athos attributes each call to a registered agent by trying, in order:
+
+1. the rep's **NPN**;
+2. **your own `platformAgentId`** — if you registered the rep under the same id your dialer sends
+   on its calls, their real calls attribute directly;
+3. their **email**;
+4. their full name.
+
+<Callout type="warn">
+  Your own id is enough only when **your platform is the dialer**. If the agency dials through a
+  **third-party** platform, its agent ids are in a namespace you never registered — register that
+  rep's email or NPN as well, the same values the dialer sends, or their calls will not find them.
+</Callout>
+
+## What differs on a real call
+
+- `source` is `"real_call"` and `drillKey` is `null`.
+- `startedAt` is when the call started; `endedAt` is derived as `startedAt` + `durationSec`. The
+  list's `from` / `to` window and ordering use `startedAt`.
+- `transcript` turns carry `startTime` / `endTime` in seconds from the start of the call.
+- `score.overallScore` is 60–100.
+- `score.complianceScorecard` is present when the call was assessed for compliance.
+- `audioUrl` is a short-lived signed link to Athos's own archived copy of the dialer recording
+  (with `audioUrlExpiresAt`), or `null` when no archive exists — never the dialer's own URL.
+
+Everything else — the ids, verifying the webhook signature, paging, reading the `score` object — is
+identical to practice calls. See [Webhooks](/backend/webhooks) and
+[Reading calls](/backend/reading-calls).
