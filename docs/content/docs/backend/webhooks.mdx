@@ -207,9 +207,10 @@ def athos_webhook():
   twice with the same id. Treat that id as your idempotency key.
 - **Polling is the backstop.** If both delivery attempts fail, the event won't be redelivered later —
   reconcile by polling [`GET /v1/calls`](/backend/reading-calls) on a schedule. That endpoint filters
-  on when a call **ended**, and scoring lands minutes later, so each poll must re-scan a window that
-  **overlaps** the previous one (an hour back is plenty) and deduplicate on the call `id`. A
-  forward-only watermark misses calls that were scored after you read past them.
+  on the call's own time (when a practice call **ended**, when a real call **started**), and scoring
+  lands minutes later, so each poll must re-scan a window that **overlaps** the previous one (an
+  hour plus the longest real call you expect) and deduplicate on the call `id`. A forward-only
+  watermark misses calls that were scored after you read past them.
 
 ## A note on frameworks
 

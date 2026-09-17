@@ -158,8 +158,9 @@ paths:
       operationId: listCalls
       description: |
         Called by **your backend**. Returns **scored** calls for your tenant, newest first
-        (`endedAt` descending), cursor-paginated — practice (`roleplay`) and real (`ingestion`)
-        calls interleaved in one page, each row carrying its `source`. Scope it to one of your
+        (a `roleplay` call by when it ended, an `ingestion` call by when it started),
+        cursor-paginated — practice (`roleplay`) and real (`ingestion`) calls interleaved in one
+        page, each row carrying its `source`. Scope it to one of your
         agencies with `agencyId`, or to one rep with `agentId`; the two combine by AND.
 
         Two filter pairs, four distinct values, none an alias of another. `agencyId` / `agentId`
@@ -170,10 +171,11 @@ paths:
         nothing matches. Naming the same rep or agency both ways in one request is
         `400 INVALID_REQUEST`.
 
-        `from` and `to` filter on when the call **ended**, not on when it was scored. Scoring
-        finishes minutes after a call ends, so a call can appear inside a window you have already
-        read past: when you reconcile, re-scan an overlapping window and deduplicate on `id`
-        rather than moving a watermark forward only. The `call.scored` webhook is the primary
+        `from` and `to` filter on the call's own time, not on when it was scored: when it
+        **ended** for a `roleplay` call, when it **started** for an `ingestion` call (a real call's
+        `endedAt` is derived as start + duration). Scoring finishes minutes after a call ends, so a
+        call can appear inside a window you have already read past: when you reconcile, re-scan an
+        overlapping window and deduplicate on `id` rather than moving a watermark forward only. The `call.scored` webhook is the primary
         notification for both sources; this endpoint is the reconciliation read.
 
         Server-to-server only (no CORS).
@@ -183,7 +185,7 @@ paths:
         - name: from
           in: query
           required: true
-          description: Lower bound (inclusive) on when the call ended. ISO 8601.
+          description: Lower bound (inclusive) on when a `roleplay` call ended / an `ingestion` call started. ISO 8601.
           schema:
             type: string
             format: date-time
@@ -191,7 +193,7 @@ paths:
         - name: to
           in: query
           required: false
-          description: Upper bound (inclusive) on when the call ended. ISO 8601.
+          description: Upper bound (inclusive) on when a `roleplay` call ended / an `ingestion` call started. ISO 8601.
           schema:
             type: string
             format: date-time
@@ -843,7 +845,7 @@ components:
     SlimCall:
       type: object
       description: The list-row shape (no `score`, no transcript).
-      required: [id, source, durationSec]
+      required: [id, source, agencyId, agentId, externalUserId, externalAgencyId, durationSec]
       properties:
         id:
           type: string
@@ -878,6 +880,7 @@ components:
         endedAt:
           type: [string, "null"]
           format: date-time
+          description: On an `ingestion` call this is derived as `startedAt` + `durationSec`.
         durationSec:
           type: integer
         scoredAt:
@@ -971,7 +974,9 @@ components:
       properties:
         overallScore:
           type: number
-          description: Overall call performance, 0–100 (higher is better).
+          description: >-
+            Overall call performance, 0–100 (higher is better). On an `ingestion` call the headline
+            is 60–100 by construction.
         summary:
           type: string
           description: >-

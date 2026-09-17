@@ -11,15 +11,15 @@ roster ids on it are what let you group by agency and by rep.
 
 ## List — `GET /v1/calls`
 
-Returns **scored** calls for your tenant, newest first (`endedAt` descending), cursor-paginated,
-both sources interleaved.
+Returns **scored** calls for your tenant, newest first (`roleplay` by `endedAt`, `ingestion` by
+`startedAt`), cursor-paginated, both sources interleaved.
 
 **Query parameters**
 
 | Param | Required | Notes |
 | --- | --- | --- |
-| `from` | ✅ | Lower bound (ISO 8601) on when the call **ended**. |
-| `to` | | Upper bound (ISO 8601) on when the call **ended**. |
+| `from` | ✅ | Lower bound (ISO 8601) on when a `roleplay` call **ended** / an `ingestion` call **started**. |
+| `to` | | Upper bound (ISO 8601) on when a `roleplay` call **ended** / an `ingestion` call **started**. |
 | `source` | | Filter by source: `roleplay` (practice calls) or `ingestion` (an agency's [real calls](/backend/real-call-analysis)). Omit it for both. |
 | `agencyId` | | **All calls for one agency**, by its Athos id (`athos_agency_…`). Checked against your roster: an unknown or foreign id is `404 AGENCY_NOT_FOUND`. |
 | `agentId` | | **All calls for one rep**, by their Athos id (`athos_agent_…`). Checked against your roster: an unknown or foreign id is `404 AGENT_NOT_FOUND`. With an `agencyId` the rep is not in, the page is empty. |
@@ -71,11 +71,13 @@ both sources interleaved.
 | `externalAgencyId` | The `platformAgencyId` you registered that agency under, or `null`. |
 
 <Callout type="warn">
-  **`from` and `to` filter on when the call *ended*, not on when it was scored**, and results come
-  back newest-ended first. Scoring finishes some minutes after the call ends, so a call can become
-  readable inside a window you have already read past. A watermark that only ever moves forward will
-  silently skip those calls — when you reconcile, re-scan a window that overlaps the last one (an
-  hour is plenty) and deduplicate on `id`.
+  **`from` and `to` filter on the call's own time, not on when it was scored** — when it *ended* for
+  a `roleplay` call, when it *started* for an `ingestion` call (a real call's `endedAt` is derived as
+  start + duration) — and results come back newest first on that same axis. Scoring finishes some
+  minutes after the call ends, so a call can become readable inside a window you have already read
+  past. A watermark that only ever moves forward will silently skip those calls — when you
+  reconcile, re-scan a window that overlaps the last one by an hour plus the longest real call you
+  expect, and deduplicate on `id`.
 </Callout>
 
 <Tabs items={['curl', 'Node']}>
@@ -209,7 +211,7 @@ For every call, practice or real, `score` always has three fields, plus one opti
 
 | Field | Type | What it is |
 | --- | --- | --- |
-| `overallScore` | number | Overall call performance, **0–100** (higher is better). |
+| `overallScore` | number | Overall call performance, **0–100** (higher is better). On an `ingestion` call the headline is **60–100** by construction. |
 | `summary` | string | A short natural-language summary of the call. |
 | `feedback` | string | Coaching feedback for the rep. |
 | `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, headed by a numeric `totalScore`. |

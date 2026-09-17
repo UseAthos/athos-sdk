@@ -18,7 +18,7 @@ Authorization: Bearer ath_live_xxxxxxxxxxxxxxxxxxxxxxxx
 - **You receive it from Athos**, shown **once** at creation. Store it as a backend secret
   (`ATHOS_API_KEY`). It is never retrievable again — if you lose it, rotate.
 - It is the **tenant boundary**: it scopes every read to your data.
-- **Never expose it to a browser.** The three API-key endpoints reject cross-origin requests
+- **Never expose it to a browser.** The six API-key endpoints reject cross-origin requests
   (see [CORS](#cors)).
 
 <Callout type="warn">
@@ -71,6 +71,9 @@ server-to-server.
 | `POST /v1/roleplay/session` | the SDK (browser) | ✅ allowed |
 | `GET /v1/calls` | your backend | ❌ rejected |
 | `GET /v1/calls/:id` | your backend | ❌ rejected |
+| `POST /v1/agents` | your backend | ❌ rejected |
+| `GET /v1/agents` | your backend | ❌ rejected |
+| `PATCH /v1/agencies/:agencyId` | your backend | ❌ rejected |
 
 If you try to call a backend endpoint from a browser, it will fail CORS — that's intentional. Put
 those calls behind your own backend.
