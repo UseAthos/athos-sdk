@@ -160,24 +160,21 @@ paths:
         Called by **your backend**. Returns **scored** calls of **one source** for your tenant,
         newest first (a `roleplay` call by when it ended, a `real_call` by when it started),
         cursor-paginated. `source` is required — `roleplay` (practice) or `real_call` (an agency's
-        real calls) — so a request is one pillar's history, never both mixed; every row still
-        carries its `source`. Scope it to one of your agencies with `agencyId`, or to one rep with
+        real calls). Scope it to one of your agencies with `agencyId`, or to one rep with
         `agentId`; the two combine by AND.
 
-        Two filter pairs, four distinct values, none an alias of another. `agencyId` / `agentId`
-        are the **Athos** ids registration returned and are checked against your roster: an id
-        that is not yours answers `404 AGENCY_NOT_FOUND` / `404 AGENT_NOT_FOUND`, never a
-        misleading empty page. `platformAgencyId` / `platformAgentId` are **your own** ids, under
-        the names you registered them: plain filters that answer an empty page when nothing
-        matches. Name each rep (and each agency) one way per request — both names for one is
-        `400 INVALID_REQUEST`; neither pair is required.
+        Two filter pairs. `agencyId` / `agentId` are the **Athos** ids and are checked against your
+        roster: an id that is not yours answers `404 AGENCY_NOT_FOUND` / `404 AGENT_NOT_FOUND`,
+        never an empty page. `platformAgencyId` / `platformAgentId` are **your own** ids: plain
+        filters that answer an empty page when nothing matches. Name each rep (and each agency) one
+        way per request — both names for one is `400 INVALID_REQUEST`; neither pair is required.
 
         `from` and `to` filter on the call's own time, not on when it was scored: when it
-        **ended** for a `roleplay` call, when it **started** for a `real_call` (a real call's
-        `endedAt` is derived as start + duration). Scoring finishes minutes after a call ends, so a
-        call can appear inside a window you have already read past: when you reconcile, re-scan an
-        overlapping window and deduplicate on `id` rather than moving a watermark forward only. The `call.scored` webhook is the primary
-        notification for both sources; this endpoint is the reconciliation read.
+        **ended** for a `roleplay` call, when it **started** for a `real_call`. Scoring finishes
+        minutes after a call ends, so a call can appear inside a window you have already read past:
+        when you reconcile, re-scan an overlapping window and deduplicate on `id`. The
+        `call.scored` webhook is the notification; this endpoint is the history and reconciliation
+        read.
 
         Server-to-server only (no CORS).
       security:
@@ -195,8 +192,8 @@ paths:
           in: query
           required: true
           description: >-
-            Which pillar to read: `roleplay` (practice calls) or `real_call` (an agency's real
-            calls). One per request. Omitting it is `400 INVALID_REQUEST`.
+            `roleplay` (practice calls) or `real_call` (an agency's real calls). One per request;
+            omitting it is `400 INVALID_REQUEST`.
           schema:
             $ref: "#/components/schemas/CallSource"
         - name: to
@@ -586,7 +583,7 @@ components:
                   message: "Invalid API key"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     Forbidden:
-      description: Authenticated but not permitted (inactive tenant, or the caller's IP is not allowed).
+      description: Authenticated but not permitted — `TENANT_INACTIVE`, or `IP_NOT_ALLOWED` when an IP allowlist is configured.
       headers:
         X-Athos-Request-Id:
           $ref: "#/components/headers/RequestId"
@@ -767,6 +764,9 @@ components:
       description: >-
         Exactly one of `agentId` or `platformAgentId`. Neither or both is `400 INVALID_REQUEST`;
         `null` is treated as omitted.
+      oneOf:
+        - required: [agentId]
+        - required: [platformAgentId]
       properties:
         agentId:
           type: string
@@ -847,8 +847,21 @@ components:
 
     SlimCall:
       type: object
-      description: The list-row shape (no `score`, no transcript).
-      required: [id, source, agencyId, agentId, platformAgentId, platformAgencyId, durationSec]
+      description: The list-row shape (no `score`, no transcript). Every key is always present; nullable ones are `null`.
+      required:
+        [
+          id,
+          source,
+          agencyId,
+          agentId,
+          platformAgentId,
+          platformAgencyId,
+          drillKey,
+          startedAt,
+          endedAt,
+          durationSec,
+          scoredAt,
+        ]
       properties:
         id:
           type: string
@@ -858,8 +871,7 @@ components:
             - $ref: "#/components/schemas/CallSource"
           description: >-
             `roleplay` (a practice call) or `real_call` (a real call). Both sources share this
-            shape; a list page holds one of them (`?source=` is required). Branch on it only
-            where the two genuinely differ (`drillKey`, per-turn timings).
+            shape; a list page holds one of them.
         agencyId:
           type: [string, "null"]
           description: The Athos id of the agency this call belongs to (`athos_agency_…`).
@@ -870,8 +882,7 @@ components:
           type: [string, "null"]
           description: >-
             The id you registered that rep under, or `null` if you didn't register one — join on
-            `agentId` in that case. The same name on the roster, the mint, the filters and the
-            `call.scored` body.
+            `agentId` in that case.
         platformAgencyId:
           type: [string, "null"]
           description: The id you registered that agency under, or `null`.
@@ -881,15 +892,20 @@ components:
         startedAt:
           type: [string, "null"]
           format: date-time
+          description: When the call started. The `from` / `to` window and ordering axis for a `real_call`.
         endedAt:
           type: [string, "null"]
           format: date-time
-          description: On a `real_call` this is derived as `startedAt` + `durationSec`.
+          description: >-
+            When the call ended — the `from` / `to` window and ordering axis for a `roleplay` call.
+            On a `real_call` it is derived as `startedAt` + `durationSec`.
         durationSec:
           type: integer
+          description: Call length in whole seconds.
         scoredAt:
           type: [string, "null"]
           format: date-time
+          description: When scoring finished.
 
     TranscriptTurn:
       type: object
@@ -924,11 +940,12 @@ components:
       allOf:
         - $ref: "#/components/schemas/SlimCall"
         - type: object
-          required: [status, transcript, score, createdAt, updatedAt]
+          required: [status, transcript, score, audioUrl, audioUrlExpiresAt, waveform, createdAt, updatedAt]
           properties:
             status:
               type: string
               enum: [scored]
+              description: Always `scored` — only scored calls are readable.
             transcript:
               type: array
               description: >
@@ -940,25 +957,16 @@ components:
             audioUrl:
               type: [string, "null"]
               description: >
-                The call recording, when there is one. `audioUrlExpiresAt` tells you which kind of
-                URL you got, and it is the field to branch on. When it is set, `audioUrl` is
-                short-lived: play it now, never store or share it, and fetch the call again for a
-                fresh one. When it is `null`, `audioUrl` is not time-limited by Athos — it is
-                either a recording URL stored with the call, or `null`, meaning there is no
-                recording you can play (calls practiced before recording was enabled, and the rare
-                case where a recording exists but could not be prepared for playback; retry the
-                request). On a `real_call` it is a short-lived signed link to Athos's own
-                archived copy of the dialer recording, or `null` when no archive exists — never the
-                dialer's URL.
+                A short-lived signed link to Athos's own archived recording (about an hour; the exact
+                expiry is `audioUrlExpiresAt`), or `null` when there is no playable recording. Play
+                it now; never store or share it — fetch the call again for a fresh one. On a
+                `real_call` it is never the dialer's own URL.
             audioUrlExpiresAt:
               type: [string, "null"]
               format: date-time
-              description: >
-                When `audioUrl` stops working, ISO 8601. `null` means `audioUrl` is NOT short-lived
-                — a stored URL with no Athos expiry, or no recording at all. Never assume a
-                non-null `audioUrl` comes with an expiry.
+              description: When `audioUrl` stops working. `null` exactly when `audioUrl` is `null`.
             waveform:
-              description: Reserved; null in v1.
+              description: Reserved; always `null`.
               type: [object, "null"]
             createdAt:
               type: string
@@ -979,8 +987,8 @@ components:
         overallScore:
           type: number
           description: >-
-            Overall call performance, 0–100 (higher is better). On a `real_call` the headline
-            is 60–100 by construction.
+            Overall call performance, 0–100 (higher is better); on a `real_call` the scale runs
+            60–100. `0` means no headline score could be produced.
         summary:
           type: string
           description: >-
@@ -997,21 +1005,17 @@ components:
           additionalProperties: true
           description: >
             The compliance scorecard for the call, section by section. **Optional** — on practice
-            calls present only on Medicare Advantage drills, and only when the call ran long enough
-            to assess (roughly five minutes); on a `real_call` present when the call was
-            assessed for compliance. The key is absent, not null, when there is none, so check for its presence
-            rather than assuming it. Section contents are graded content and may gain items over
+            calls present only on Medicare Advantage drills that ran at least five minutes; on a
+            `real_call` present when the call was assessed for compliance. The key is absent, not
+            null, when there is none. Section contents are graded content and may gain items over
             time; `totalScore` is the one fixed field.
           properties:
             totalScore:
               type: number
               description: >
-                The call's compliance total (higher is better). **Optional, and normally present** —
-                whenever a compliance scorecard is returned this field is populated. It is omitted in
-                the rare case where the underlying total is not a usable number. Treat an absent
-                `totalScore` as **"not assessed" — never as a zero**: a fabricated `0` would be
-                indistinguishable from a genuine failing compliance score, so we omit the field
-                rather than invent one. The section detail is still valid when the total is absent.
+                The call's compliance total (higher is better). Normally present; omitted in the
+                rare case where the underlying total is not a usable number. Treat an absent
+                `totalScore` as "not assessed", never as zero.
       example:
         overallScore: 82
         summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."
