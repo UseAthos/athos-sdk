@@ -132,6 +132,8 @@ a terminal error and offer to restart.
 | `NO_MIC_AVAILABLE` | No microphone is available, or the page is not on HTTPS. |
 
 Raised from `connect()`, the token is *usually* unspent — always so for a permission the rep never
-granted, which is the common case. Raised mid-call, the session is already live and ends as usual.
+granted, which is the common case. Raised mid-call, the session **stays live and billable**: the SDK
+only emits the `error`, so call `setMicrophone()` to switch devices or `disconnect()` to end the
+call yourself. Only `NETWORK_LOST` ends a session on its own.
 
 See the full list in [Error codes](/sdk/errors).

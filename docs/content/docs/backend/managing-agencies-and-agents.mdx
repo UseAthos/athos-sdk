@@ -215,7 +215,10 @@ above, never an update. If a rep's email, NPN or agency changes, ask your Athos 
 
 `platformAgentId` and `platformAgencyId` are **your** ids, stored and echoed back on every object,
 call and delivery so you never have to map ours to yours (see
-[Two id families](/concepts#two-id-families)). Two rules:
+[Two id families](/concepts#two-id-families)). Leading and trailing whitespace is removed from
+every string field — on registration, and again wherever you send an id back (the mint, the lookup,
+the calls filters) — so `" rep_8842 "` and `"rep_8842"` are the same rep, and a whitespace-only
+value is a `400 INVALID_REQUEST`. Two rules:
 
 - Neither may begin with `athos_agent_` or `athos_agency_` — those are Athos ids. That is a
   `400 INVALID_REQUEST` everywhere.

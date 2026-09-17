@@ -13,7 +13,8 @@ entirely** — your code never touches a WebRTC primitive.
 the REST API that returns the transcript and score — are at
 [docs.useathos.ai](https://docs.useathos.ai).** This README covers the browser half only.
 
-> **Browser support:** desktop **Chrome, Edge, and Firefox** only. Safari (desktop and iOS) and all
+> **Browser support:** desktop **Chromium-based browsers (Chrome, Edge, Opera, Brave, …) and Firefox**
+> only. Safari (desktop and iOS) and all
 > mobile browsers are unsupported — `create()` throws `BROWSER_NOT_SUPPORTED` on them. Detect ahead of
 > time with the exported `detectBrowserSupport(navigator.userAgent)` and prompt the user to switch.
 
@@ -137,13 +138,13 @@ Branch on `error.code` (and on a thrown `AthosRoleplayError.code`). `message` is
 | `NETWORK_LOST` | The connection dropped and could not be recovered within 30s. |
 | `AUDIO_PLAYBACK_BLOCKED` | The browser blocked audio autoplay; call `resumeAudio()` from a user gesture. |
 | `BROWSER_NOT_SUPPORTED` | Safari / mobile / unsupported browser (thrown synchronously from `create()`). |
-| `SESSION_ALREADY_CONNECTED` | `connect()` was called twice on the same session. |
+| `SESSION_ALREADY_CONNECTED` | `connect()` was called twice on the same session — sessions are single-use; create a new one per call. |
 | `INVALID_TOKEN` | The token was malformed or rejected. |
 | `TOKEN_EXPIRED` | The token's short lifetime elapsed before redemption. |
 | `TOKEN_ALREADY_USED` | The single-use token was already redeemed. |
 | `INVALID_REQUEST` | The request body was invalid (e.g. a missing/blank `drillKey`). |
 | `DRILL_NOT_FOUND` | The `drillKey` does not match a known drill. |
-| `SERVICE_UNAVAILABLE` | The Athos service is temporarily unavailable; the attempt consumed the session token, so mint a new one and start a new call. |
+| `SERVICE_UNAVAILABLE` | No persona is available for the drill right now — the only 503 (an infrastructure failure is `INTERNAL_ERROR`). The attempt consumed the session token, so mint a new one and start a new call. |
 | `INTERNAL_ERROR` | An unexpected error; see `message`. |
 
 A failed redemption usually **spends** the session token — it is consumed as the request is

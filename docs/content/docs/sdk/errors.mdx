@@ -45,7 +45,7 @@ These originate in the browser at runtime:
 | `NETWORK_LOST` | The connection dropped and could not recover within 30s. The session ended. |
 | `AUDIO_PLAYBACK_BLOCKED` | The browser blocked audio autoplay; call `resumeAudio()` from a user gesture. |
 | `BROWSER_NOT_SUPPORTED` | Safari / mobile / unsupported browser (thrown synchronously from `create()`). |
-| `SESSION_ALREADY_CONNECTED` | `connect()` was called twice on the same session. |
+| `SESSION_ALREADY_CONNECTED` | `connect()` was called twice on the same session — sessions are single-use; create a new one per call. |
 
 <Callout type="info">
   **`connect()` asks for the microphone before it redeems the token**, so a denied or missing
@@ -67,7 +67,7 @@ channel:
 | `TOKEN_ALREADY_USED` | The single-use token was already redeemed. | Mint a new token per call. |
 | `DRILL_NOT_FOUND` | The `drillKey` doesn't match a known drill. | Check the [Drills reference](/reference/drills), then mint a new token — this attempt spent it. |
 | `INVALID_REQUEST` | The request was invalid (e.g. blank `drillKey`). | Fix the `create()` options. The token is unspent, so the same one still works. |
-| `SERVICE_UNAVAILABLE` | Athos is temporarily unavailable. | Mint a new token and start a new call — the token is spent. |
+| `SERVICE_UNAVAILABLE` | No persona is available for the drill right now — the only 503; an infrastructure failure is `INTERNAL_ERROR`. | Mint a new token and start a new call — the token is spent. |
 | `INTERNAL_ERROR` | An unexpected error. | Mint a new token and start a new call; if it persists, contact Athos with the message. |
 
 <Callout type="warn">
