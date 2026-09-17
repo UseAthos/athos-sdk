@@ -158,13 +158,23 @@ paths:
       operationId: listCalls
       description: |
         Called by **your backend**. Returns **scored** calls for your tenant, newest first
-        (`endedAt` descending), cursor-paginated. This is a manager-history read, not a webhook
-        reconciliation feed.
+        (`endedAt` descending), cursor-paginated — practice (`roleplay`) and real (`ingestion`)
+        calls interleaved in one page, each row carrying its `source`. Scope it to one of your
+        agencies with `agencyId`, or to one rep with `agentId`; the two combine by AND.
+
+        Two filter pairs, four distinct values, none an alias of another. `agencyId` / `agentId`
+        are the **Athos** ids registration returned and are checked against your roster: an id
+        that is not yours answers `404 AGENCY_NOT_FOUND` / `404 AGENT_NOT_FOUND`, never a
+        misleading empty page. `externalAgencyId` / `externalUserId` are **your own**
+        `platformAgencyId` / `platformAgentId`: plain filters that answer an empty page when
+        nothing matches. Naming the same rep or agency both ways in one request is
+        `400 INVALID_REQUEST`.
 
         `from` and `to` filter on when the call **ended**, not on when it was scored. Scoring
         finishes minutes after a call ends, so a call can appear inside a window you have already
-        read past: re-scan an overlapping window on each poll and deduplicate on `id` rather than
-        moving a watermark forward only.
+        read past: when you reconcile, re-scan an overlapping window and deduplicate on `id`
+        rather than moving a watermark forward only. The `call.scored` webhook is the primary
+        notification for both sources; this endpoint is the reconciliation read.
 
         Server-to-server only (no CORS).
       security:
@@ -191,12 +201,29 @@ paths:
           description: Filter by call source (`roleplay` or `ingestion`). Omit it for both.
           schema:
             $ref: "#/components/schemas/CallSource"
+        - name: agencyId
+          in: query
+          required: false
+          description: >-
+            All calls for one of your agencies, by its Athos id (`athos_agency_…`). Checked against
+            your roster: another tenant's or an unknown id is `404 AGENCY_NOT_FOUND`.
+          schema:
+            type: string
+        - name: agentId
+          in: query
+          required: false
+          description: >-
+            All calls for one rep, by their Athos id (`athos_agent_…`). Checked against your roster:
+            another tenant's or an unknown id is `404 AGENT_NOT_FOUND`. Combined with an `agencyId`
+            the rep is not in, the page is empty.
+          schema:
+            type: string
         - name: externalUserId
           in: query
           required: false
           description: >-
             Filter to one of your reps by the `platformAgentId` you registered them under. An unknown
-            value is an empty page, never an error.
+            value is an empty page, never an error. Not together with `agentId`.
           schema:
             type: string
         - name: externalAgencyId
@@ -204,7 +231,7 @@ paths:
           required: false
           description: >-
             Filter to one of your agencies by the `platformAgencyId` you registered it under. A filter
-            only — never an authorization boundary.
+            only — an unknown value is an empty page. Not together with `agencyId`.
           schema:
             type: string
         - name: limit
@@ -238,6 +265,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/ScopeNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -247,9 +276,10 @@ paths:
       summary: Get call detail
       operationId: getCall
       description: |
-        Called by **your backend**. Returns the full scored detail for one call, including the
-        speaker-labelled `transcript` and the `score` object. Look up by the public `id`
-        (`athos_call_…`) returned in the list response, the webhook `callId`, or the SDK `ended` event.
+        Called by **your backend**. Returns the full scored detail for one call of either source,
+        including the speaker-labelled `transcript`, the `score` object and a short-lived
+        `audioUrl` for the recording. Look up by the public `id` (`athos_call_…`) returned in the
+        list response, the webhook `callId`, or the SDK `ended` event.
 
         A call belonging to a different tenant returns `404 CALL_NOT_FOUND` (existence never leaks
         across tenants). Server-to-server only (no CORS).
@@ -610,6 +640,30 @@ components:
                   code: "AGENCY_NOT_FOUND"
                   message: "Agency not found"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    ScopeNotFound:
+      description: >-
+        The `agencyId` or `agentId` you scoped by is not one of yours (unknown, or another
+        tenant's). Never an empty page — that would read as "no calls".
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agencyNotFound:
+              value:
+                error:
+                  code: "AGENCY_NOT_FOUND"
+                  message: "Agency not found"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+            agentNotFound:
+              value:
+                error:
+                  code: "AGENT_NOT_FOUND"
+                  message: "No agent is registered under that id"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     AgentNotFound:
       description: >-
         No agent of yours is registered under that id. The mint takes an id only — your
@@ -795,7 +849,12 @@ components:
           type: string
           description: Public call id (`athos_call_…`). Never the internal database id.
         source:
-          $ref: "#/components/schemas/CallSource"
+          allOf:
+            - $ref: "#/components/schemas/CallSource"
+          description: >-
+            `roleplay` (a practice call) or `ingestion` (a real call). Both sources share this
+            shape and page together; branch on it only where the two genuinely differ
+            (`drillKey`, per-turn timings).
         agencyId:
           type: [string, "null"]
           description: The Athos id of the agency this call belongs to (`athos_agency_…`).
@@ -835,8 +894,8 @@ components:
           type: string
           enum: [agent, beneficiary]
           description: >
-            Who spoke. `agent` is the human rep being graded; `beneficiary` is the AI customer they
-            practised against.
+            Who spoke. `agent` is the human rep being graded; `beneficiary` is the customer — the AI
+            persona on a `roleplay` call, the real person on the line on an `ingestion` call.
         content:
           type: string
           description: What was said on this turn.
@@ -852,6 +911,9 @@ components:
             `ingestion` calls, not on roleplay calls.
 
     CallDetail:
+      description: >-
+        One shape for both sources: `source` says whether it is a practice or a real call, and
+        everything else reads the same way.
       allOf:
         - $ref: "#/components/schemas/SlimCall"
         - type: object
@@ -878,7 +940,9 @@ components:
                 either a recording URL stored with the call, or `null`, meaning there is no
                 recording you can play (calls practiced before recording was enabled, and the rare
                 case where a recording exists but could not be prepared for playback; retry the
-                request). On an `ingestion` call it is `null` in this release.
+                request). On an `ingestion` call it is a short-lived signed link to Athos's own
+                archived copy of the dialer recording, or `null` when no archive exists — never the
+                dialer's URL.
             audioUrlExpiresAt:
               type: [string, "null"]
               format: date-time

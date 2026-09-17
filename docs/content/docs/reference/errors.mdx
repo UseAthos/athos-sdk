@@ -36,8 +36,8 @@ codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent other
 | `TENANT_INACTIVE` | 403 | Your tenant is inactive. |
 | `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant's monthly usage allowance is spent. It clears at the start of the next calendar month. |
 | `CALL_NOT_FOUND` | 404 | No such call for your tenant (also returned for another tenant's call). |
-| `AGENT_NOT_FOUND` | 404 | No agent of yours is registered under the id you minted with. Register the rep first, or resolve a handle (NPN, email) to an id with `GET /agents`. |
-| `AGENCY_NOT_FOUND` | 404 | No such agency for your tenant (also returned for another tenant's agency). Check the `agencyId` you stored. |
+| `AGENT_NOT_FOUND` | 404 | No agent of yours is registered under that id — the id you minted with, or the `agentId` you scoped `GET /calls` by. Register the rep first, or resolve a handle (NPN, email) to an id with `GET /agents`. |
+| `AGENCY_NOT_FOUND` | 404 | No such agency for your tenant (also returned for another tenant's agency) — on `PATCH /agencies/{agencyId}`, `GET /agents?agencyId=` and `GET /calls?agencyId=`. Check the `agencyId` you stored. |
 | `AGENT_ALREADY_EXISTS` | 409 | A rep is already registered under one of the handles you sent. `details` carries `{ agentId, agencyId, matchedOn }` — use those ids instead of retrying. |
 | `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable. Transient, but see the note below before retrying. |
 | `INTERNAL_ERROR` | 500 | An unexpected error. Retry; if it persists, contact Athos with the `requestId`. |
@@ -60,8 +60,11 @@ codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent other
   `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
   drill right now). These surface through the SDK's [`error` event](/sdk/errors). Most of them
   **spend the session token** — see [below](#a-failed-redemption-usually-spends-the-token).
-- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only), `INVALID_API_KEY`,
-  `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, and `CALL_NOT_FOUND` (detail only).
+- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only — a bad cursor, or
+  the same rep / agency named both ways), `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
+  `IP_NOT_ALLOWED`, `AGENCY_NOT_FOUND` / `AGENT_NOT_FOUND` (list only — an `agencyId` / `agentId`
+  that is not yours), and `CALL_NOT_FOUND` (detail only). The `externalAgencyId` /
+  `externalUserId` filters never error: an unknown value is an empty page.
 
 ## A failed redemption usually spends the token
 

@@ -1,14 +1,18 @@
 ---
 title: Reading calls
-description: List scored calls and fetch full detail, including the score object.
+description: All calls for an agency, all calls for a rep, and the detail plus score of one call — practice and real in the same answer.
 ---
 
-Two endpoints, both server-to-server with your API key: a slim **list** for history views, and a
-full **detail** for one call's transcript and score.
+Two endpoints, both server-to-server with your API key: a slim **list** that answers "all calls
+for this agency" and "all calls for this rep", and a full **detail** for one call's transcript,
+score and recording. Practice calls (`roleplay`) and an agency's real calls (`ingestion`) come back
+**in the same list, the same shape and the same order** — every row carries its `source`, and the
+roster ids on it are what let you group by agency and by rep.
 
 ## List — `GET /v1/calls`
 
-Returns **scored** calls for your tenant, newest first (`endedAt` descending), cursor-paginated.
+Returns **scored** calls for your tenant, newest first (`endedAt` descending), cursor-paginated,
+both sources interleaved.
 
 **Query parameters**
 
@@ -17,10 +21,20 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 | `from` | ✅ | Lower bound (ISO 8601) on when the call **ended**. |
 | `to` | | Upper bound (ISO 8601) on when the call **ended**. |
 | `source` | | Filter by source: `roleplay` (practice calls) or `ingestion` (an agency's [real calls](/backend/real-call-analysis)). Omit it for both. |
-| `externalUserId` | | Filter to one rep by the `platformAgentId` you registered them under. An unknown value is an empty page. |
-| `externalAgencyId` | | Filter to one agency by its `platformAgencyId` (a filter, never an auth boundary). |
+| `agencyId` | | **All calls for one agency**, by its Athos id (`athos_agency_…`). Checked against your roster: an unknown or foreign id is `404 AGENCY_NOT_FOUND`. |
+| `agentId` | | **All calls for one rep**, by their Athos id (`athos_agent_…`). Checked against your roster: an unknown or foreign id is `404 AGENT_NOT_FOUND`. With an `agencyId` the rep is not in, the page is empty. |
+| `externalUserId` | | Filter to one rep by the `platformAgentId` you registered them under. An unknown value is an empty page. Not together with `agentId`. |
+| `externalAgencyId` | | Filter to one agency by its `platformAgencyId`. An unknown value is an empty page. Not together with `agencyId`. |
 | `limit` | | Page size, default `50`, max `100`. |
 | `cursor` | | Opaque token from a previous `nextCursor`. |
+
+<Callout type="info">
+  **Two filter pairs, four different values.** `agencyId` / `agentId` are *Athos* ids and are
+  **checked**: asking for an agency or rep that is not yours is a `404`, never an empty page that
+  would read as "no calls". `externalAgencyId` / `externalUserId` are *your own* ids and are plain
+  filters: an unknown value is an empty page. Naming the same rep or agency both ways in one
+  request is `400 INVALID_REQUEST`.
+</Callout>
 
 **Response** — a slim row per call (no score, no transcript):
 
@@ -60,50 +74,58 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
   **`from` and `to` filter on when the call *ended*, not on when it was scored**, and results come
   back newest-ended first. Scoring finishes some minutes after the call ends, so a call can become
   readable inside a window you have already read past. A watermark that only ever moves forward will
-  silently skip those calls — on each poll, re-scan a window that overlaps the last one (an hour is
-  plenty) and deduplicate on `id`.
+  silently skip those calls — when you reconcile, re-scan a window that overlaps the last one (an
+  hour is plenty) and deduplicate on `id`.
 </Callout>
 
 <Tabs items={['curl', 'Node']}>
 <Tab value="curl">
 ```bash
+# every call for one agency, practice and real
 curl -G https://app.useathos.ai/api/external/v1/calls \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
   --data-urlencode "from=2026-06-01T00:00:00Z" \
+  --data-urlencode "agencyId=athos_agency_V1StGXR8Z5jdHi6B-myT" \
   --data-urlencode "limit=50"
 ```
 </Tab>
 <Tab value="Node">
 ```ts
-async function* allCalls(from: string) {
+async function* callsFor(from: string, scope: { agencyId?: string; agentId?: string }) {
   let cursor: string | null = null;
   do {
     const url = new URL('https://app.useathos.ai/api/external/v1/calls');
     url.searchParams.set('from', from);
+    if (scope.agencyId) url.searchParams.set('agencyId', scope.agencyId);
+    if (scope.agentId) url.searchParams.set('agentId', scope.agentId);
     if (cursor) url.searchParams.set('cursor', cursor);
     const r = await fetch(url, { headers: { Authorization: `Bearer ${process.env.ATHOS_API_KEY}` } });
+    if (r.status === 404) throw new Error((await r.json()).error.code); // AGENCY_NOT_FOUND / AGENT_NOT_FOUND
     const page = await r.json();
     yield* page.data;
     cursor = page.nextCursor;
   } while (cursor);
 }
 
-for await (const call of allCalls('2026-06-01T00:00:00Z')) {
-  console.log(call.id, call.drillKey, call.scoredAt);
+// one rep's practice and real calls, newest first
+for await (const call of callsFor('2026-06-01T00:00:00Z', { agentId: rep.agentId })) {
+  console.log(call.id, call.source, call.drillKey, call.scoredAt);
 }
 ```
 </Tab>
 </Tabs>
 
 <Callout type="info">
-  `GET /v1/calls` is a history read — it returns scored calls only, not in-progress ones. Use the
-  [webhook](/backend/webhooks) as your push signal and this endpoint as the backstop.
+  `GET /v1/calls` is a history read — it returns scored calls only, not in-progress ones. The
+  [`call.scored` webhook](/backend/webhooks) is your notification for both practice and real calls;
+  use this endpoint to render history and to reconcile.
 </Callout>
 
 ## Detail — `GET /v1/calls/:callId`
 
-Look up one call by its public `id` (from a list row, a webhook `callId`, or the SDK `ended` event).
-A call from another tenant returns `404 CALL_NOT_FOUND`.
+Look up one call of either source by its public `id` (from a list row, a webhook `callId`, or the
+SDK `ended` event). A call from another tenant returns `404 CALL_NOT_FOUND`, indistinguishable from
+an unknown id.
 
 ```bash
 curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ8mp \
@@ -172,12 +194,14 @@ link, but **do not store it** in your database and do not email or embed it anyw
 when you need it again, fetch the call again and you get a fresh one.
 
 When `audioUrlExpiresAt` is `null`, the URL is not time-limited by us. Either the call carries a
-stored recording URL (older calls do), or `audioUrl` is `null` too and there is nothing to play — a
-call practised before recording was enabled, or the rare case where a recording exists but could not
-be prepared for playback, which a later request usually resolves.
+stored recording URL (older practice calls do), or `audioUrl` is `null` too and there is nothing to
+play — a call practised before recording was enabled, a real call whose recording was not archived,
+or the rare case where a recording exists but could not be prepared for playback, which a later
+request usually resolves.
 
-A real (`ingestion`) call's `audioUrl` is `null` in this release; a playable, short-lived link for
-real calls lands in a later one.
+A real (`ingestion`) call's `audioUrl` is a short-lived signed link to **Athos's own archived copy**
+of the dialer recording, with `audioUrlExpiresAt` set — or `null` when no archive exists. It is
+never the dialer's own recording URL.
 
 ## The `score` object
 

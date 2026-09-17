@@ -20,31 +20,38 @@ Within your tenant, Athos keeps a **roster**:
   is findable afterwards by any of those or by the Athos id registration returns (`agentId`).
 
 See [Managing agencies and agents](/backend/managing-agencies-and-agents). Nobody from your world
-ever logs into Athos — the roster is maintained entirely through this API. A rep must be registered
-before their first roleplay: a session token is only minted for a registered agent, by its
-`platformAgentId` or its Athos `agentId`.
+ever logs into Athos — the roster is maintained entirely through this API. The roster exists so
+that every call can be attributed to one rep and one agency and **read back by agency and by rep**:
+`GET /v1/calls?agencyId=` and `GET /v1/calls?agentId=` return practice and real calls together. A
+rep must be registered before their first roleplay: a session token is only minted for a registered
+agent, by its `platformAgentId` or its Athos `agentId`.
 
-Every call and every `call.scored` delivery carries two id families for the same rep and agency:
+Every call and every `call.scored` delivery carries **two id families** for the same rep and
+agency — one of each, never one value under two names:
 
-- **`agentId` / `agencyId`** — the Athos ids registration returned. Always present.
-- **`externalUserId` / `externalAgencyId`** — your own ids. `externalUserId` on every call and every
-  delivery is the `platformAgentId` you registered that rep under, or `null` if you didn't register
-  one — join on `agentId` in that case. `externalAgencyId` is the agency's `platformAgencyId`, or
-  `null`. Both are read-side names only: a request names a rep by `agentId` or `platformAgentId`,
-  the same fields the agent object carries.
+- **Ours — `agentId` / `agencyId`** (and `callId`): the Athos ids registration returned. Always
+  present. These are what you pass back: `?agentId=` / `?agencyId=` on `GET /v1/calls`,
+  `agentId` on the mint, `{agencyId}` on `PATCH /v1/agencies`.
+- **Yours — `externalUserId` / `externalAgencyId`**: the `platformAgentId` / `platformAgencyId` you
+  registered, echoed back. `externalUserId` is `null` if you never registered one — join on
+  `agentId` in that case; `externalAgencyId` is `null` likewise. On the wire you send them as
+  `platformAgentId` / `platformAgencyId` (registration, the mint, `GET /v1/agents`) and read them as
+  `externalUserId` / `externalAgencyId` (calls, deliveries, and the two `GET /v1/calls` filters of
+  the same name). A field never holds the other family's value.
 
 <Callout type="warn">
-  `externalAgencyId` is a **filter only** — never an authorization boundary. Anyone with your API
-  key can read every call in your tenant regardless of agency. If you run a multi-agency product,
-  enforce per-agency access **in your own backend**.
+  Scoping by `agencyId` or `agentId` is checked against **your** roster (someone else's id is a
+  `404`), but that is tenant isolation, not per-agency access control: anyone with your API key can
+  read every call in your tenant regardless of agency. If you run a multi-agency product, enforce
+  per-agency access **in your own backend**.
 </Callout>
 
 ## Identifiers
 
 | Id | Looks like | What it is |
 | --- | --- | --- |
-| **`agencyId`** | `athos_agency_V1StGXR8…` | The stable, public id for one of your agencies. Returned at registration; use it for `PATCH /v1/agencies/:id` and to register further agents into it. |
-| **`agentId`** | `athos_agent_bR4kQ2wZ…` | The stable, public id for a rep. Returned at registration; look the rep up by it with `GET /v1/agents?agentId=`. |
+| **`agencyId`** | `athos_agency_V1StGXR8…` | The stable, public id for one of your agencies. Returned at registration; use it for `PATCH /v1/agencies/:id`, to register further agents into it, and to list its calls with `GET /v1/calls?agencyId=`. |
+| **`agentId`** | `athos_agent_bR4kQ2wZ…` | The stable, public id for a rep. Returned at registration; look the rep up by it with `GET /v1/agents?agentId=`, mint with it, and list their calls with `GET /v1/calls?agentId=`. |
 | **`callId`** | `athos_call_GZ1DjOkZv_…` | The stable, public id for a call. Use it for `GET /v1/calls/:id`, in webhooks, and in the SDK `ended` event. **This is the only call id that crosses the API boundary.** |
 | **`requestId`** | `req_2f8c1e94-…` | Returned on every API response as the `X-Athos-Request-Id` header. Quote it in support tickets. |
 
@@ -74,7 +81,8 @@ so the webhook is the only signal you get for it. Handle both branches: see [whe
 `false`](/backend/webhooks#when-success-is-false).
 
 `GET /v1/calls` returns scored calls only — it is a manager-history read, not a queue of
-in-progress calls. The webhook is your push signal; polling `GET /v1/calls` is the backstop.
+in-progress calls. The webhook is your notification for both sources; `GET /v1/calls` is the
+history and reconciliation read.
 
 ## Call sources
 
@@ -86,4 +94,5 @@ Every call carries a **`source`**:
   [Real-call analysis](/backend/real-call-analysis).
 
 Both kinds fire the same `call.scored` webhook, carry the same ids, and are read from the same
-endpoints. A real call has no `drillKey`.
+endpoints — one `GET /v1/calls?agencyId=` page holds an agency's practice and real calls together,
+newest first. A real call has no `drillKey`.

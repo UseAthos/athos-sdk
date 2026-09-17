@@ -52,8 +52,11 @@ file and the two disagree, the licence number wins.
   practice call, so one join works across both sources.
 - The `transcript` turns carry `startTime` / `endTime` in seconds from the start of the call.
 - `score.complianceScorecard` is present when the call was assessed for compliance.
-- `audioUrl` is `null` in this release; a playable, short-lived recording link for real calls lands
-  in a later one.
+- `audioUrl` is a short-lived signed link to Athos's own archived copy of the dialer recording
+  (with `audioUrlExpiresAt`), or `null` when no archive exists — never the dialer's own URL. See
+  [Recording playback](/backend/reading-calls#recording-playback).
+- `GET /v1/calls?agencyId=` and `?agentId=` return the agency's or rep's real calls **and** practice
+  calls in one page.
 
 Everything else — verifying the webhook signature, paging the list, reading the `score` object — is
 identical to practice calls. See [Webhooks](/backend/webhooks) and
