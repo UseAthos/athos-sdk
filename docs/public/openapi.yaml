@@ -508,6 +508,83 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+webhooks:
+  call.scored:
+    post:
+      tags: [Calls]
+      summary: call.scored — a call reached its outcome
+      operationId: callScoredWebhook
+      # Outbound: no auth scheme applies — the X-Athos-Signature HMAC is the trust boundary.
+      security: []
+      description: |
+        Sent by **Athos to your registered HTTPS URL** when a call reaches its outcome — scored
+        (`success: true`) or not (`success: false`). Fires once per call, for practice calls and for an
+        agency's real calls alike, with the same body. The body is deliberately thin: it names the
+        call; fetch the score and transcript with `GET /calls/{callId}` (only when `success` is true —
+        a call that did not score is not readable).
+
+        Verify `X-Athos-Signature` over the **raw request body** before trusting the event, answer
+        `2xx` within 10 seconds, and deduplicate on `X-Athos-Webhook-Id`: a failed delivery is retried
+        **once, about 5 minutes later**, with the same id and the same body, then dropped —
+        reconcile by polling `GET /calls`.
+      parameters:
+        - name: X-Athos-Signature
+          in: header
+          required: true
+          description: >-
+            `t=<unix-seconds>,v1=<hex>` where `v1 = HMAC-SHA256(your whsec_ secret, "<t>.<raw body>")`.
+            Reject a `t` more than 5 minutes from now.
+          schema:
+            type: string
+          example: "t=1749139254,v1=3a8f1c…e92"
+        - name: X-Athos-Webhook-Id
+          in: header
+          required: true
+          description: Stable across the retry — your idempotency key.
+          schema:
+            type: string
+          example: "wh_2c7e9a04-…"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CallScoredEvent"
+            examples:
+              scored:
+                summary: The call scored
+                value:
+                  event: "call.scored"
+                  success: true
+                  callId: "athos_call_GZ1DjOkZv_VEPoE-CJ8mp"
+                  source: "roleplay"
+                  agentId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
+                  agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+                  platformAgentId: "rep_8842"
+                  platformAgencyId: "acme-7731"
+                  occurredAt: "2026-06-05T18:09:14.000Z"
+                  requestId: "req_b1f0c2d4-7a1e-4c3b-9f2d-0e8a6b5c4d3e"
+              notScored:
+                summary: The call could not be scored
+                value:
+                  event: "call.scored"
+                  success: false
+                  callId: "athos_call_GZ1DjOkZv_VEPoE-CJ8mp"
+                  source: "roleplay"
+                  agentId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
+                  agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+                  platformAgentId: "rep_8842"
+                  platformAgencyId: "acme-7731"
+                  occurredAt: "2026-06-05T18:09:14.000Z"
+                  requestId: "req_b1f0c2d4-7a1e-4c3b-9f2d-0e8a6b5c4d3e"
+                  reason: "SCORING_INCOMPLETE"
+                  reasonMessage: "Athos did not finish processing this call."
+      responses:
+        "2XX":
+          description: >-
+            Acknowledged. Any other status, or no answer within 10 seconds, counts as a failed
+            delivery.
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -751,6 +828,58 @@ components:
         - AGENCY_NOT_FOUND
         - SERVICE_UNAVAILABLE
         - INTERNAL_ERROR
+
+    CallScoredEvent:
+      type: object
+      description: >-
+        The `call.scored` webhook body. Exactly these keys on a scored call; `reason` and
+        `reasonMessage` are added only when `success` is `false`. Never carries a score or a
+        transcript.
+      required:
+        [event, success, callId, source, agentId, agencyId, platformAgentId, platformAgencyId, occurredAt, requestId]
+      properties:
+        event:
+          type: string
+          enum: [call.scored]
+          description: Always `call.scored` in v1.
+        success:
+          type: boolean
+          description: >-
+            `true` when Athos scored the call — fetch it with `GET /calls/{callId}`. `false` when it
+            could not be scored: the call is not readable, and `reason` says why.
+        callId:
+          type: string
+          description: Public call id (`athos_call_…`).
+        source:
+          $ref: "#/components/schemas/CallSource"
+        agentId:
+          type: string
+          description: The Athos id of the rep who took the call (`athos_agent_…`).
+        agencyId:
+          type: string
+          description: The Athos id of their agency (`athos_agency_…`).
+        platformAgentId:
+          type: [string, "null"]
+          description: The id you registered that rep under, or `null` — join on `agentId` then.
+        platformAgencyId:
+          type: [string, "null"]
+          description: The id you registered that agency under, or `null` — join on `agencyId` then.
+        occurredAt:
+          type: string
+          format: date-time
+          description: When the outcome was reached.
+        requestId:
+          type: string
+          description: A delivery support id (`req_…`) — quote it to Athos if a delivery looks wrong.
+        reason:
+          type: string
+          description: >-
+            Only when `success` is `false`. A stable machine code; the list is append-only, so branch
+            on the codes you know and log the rest. Today: `SCORING_INCOMPLETE`.
+          examples: ["SCORING_INCOMPLETE"]
+        reasonMessage:
+          type: string
+          description: Only when `success` is `false`. Human-readable; log it, don't parse it.
 
     CallSource:
       type: string

@@ -62,7 +62,8 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
 | `requestId` | A delivery support id — quote it to Athos if a delivery looks wrong. |
 
 The body never contains a `score` or a transcript. Fetch those with
-[`GET /v1/calls/:id`](/backend/reading-calls).
+[`GET /v1/calls/:id`](/backend/reading-calls). The same body is declared as the `call.scored`
+webhook in the [OpenAPI spec](/openapi.yaml) (`CallScoredEvent`), so a generated client can type it.
 
 ## When `success` is `false`
 

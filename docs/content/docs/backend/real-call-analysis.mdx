@@ -18,8 +18,9 @@ second agency onto real calls is a second arrangement.
 
 Once an agency is live, its reps' real calls appear in `GET /v1/calls?source=real_call` and fire
 `call.scored` with the same signed body, once per call (`success: false` when the call was kept but
-could not be scored — see [Webhooks](/backend/webhooks)). An agency that has not been switched on
-ingests nothing, is scored for nothing and is billed for nothing.
+could not be scored — see [Webhooks](/backend/webhooks)). Their minutes count toward the same monthly
+allowance as practice calls (the one `TENANT_QUOTA_EXCEEDED` reports). An agency that has not been
+switched on ingests nothing, is scored for nothing and is billed for nothing.
 
 ## Register your reps first
 

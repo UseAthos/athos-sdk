@@ -72,8 +72,8 @@ is not yours is `404 AGENCY_NOT_FOUND`.
 
 **Already registered?** Registering a rep who already exists under any handle you sent is a
 `409 AGENT_ALREADY_EXISTS`. `error.details` carries the existing ids and which handle matched
-(`matchedOn` is one of `agentId`, `platformAgentId`, `npn`, `email`), so a create retried after a
-network timeout resolves in one call:
+(`matchedOn` is one of `platformAgentId`, `npn`, `email` — the handles a registration can send), so
+a create retried after a network timeout resolves in one call:
 
 ```json
 {
@@ -201,8 +201,15 @@ curl -X PATCH https://app.useathos.ai/api/external/v1/agencies/athos_agency_V1St
 `404 AGENCY_NOT_FOUND`; a `platformAgencyId` already on another of your agencies answers
 `400 INVALID_REQUEST`.
 
-An agency created for you at a rep's registration has no `platformAgencyId`; this is how it gets
+An agency created at a registration that sent no `platformAgencyId` has none; this is how it gets
 one.
+
+## What you cannot change (v1)
+
+An agent's handles and agency are fixed at registration: there is no endpoint to update an agent, move
+one to another agency, or remove one. A second `POST /v1/agents` for the same person is the `409`
+above, never an update. If a rep's email, NPN or agency changes, ask your Athos contact. An agency's
+`name` and `platformAgencyId` are the only roster fields you can change yourself (`PATCH` above).
 
 ## Your own ids
 

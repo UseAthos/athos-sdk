@@ -133,5 +133,7 @@ def athos_token():
 | 404 | `AGENT_NOT_FOUND` | No agent of yours is registered under that id. Register the rep first, or resolve an NPN or email to an id with `GET /v1/agents`. |
 
 `TENANT_QUOTA_EXCEEDED` issues no token and is not retryable — the allowance lifts at the start of
-the next calendar month, or when your Athos contact raises it. Surface it to the rep as "practice is
-unavailable this month". Full envelope and list: [error reference](/reference/errors).
+the next calendar month, or when your Athos contact raises it. It is measured in call minutes across
+your whole tenant, practice and [real calls](/backend/real-call-analysis) alike. Surface it to the
+rep as "practice is unavailable this month". Full envelope and list:
+[error reference](/reference/errors).
