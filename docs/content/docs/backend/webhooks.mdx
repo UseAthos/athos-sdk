@@ -3,10 +3,10 @@ title: Webhooks
 description: Receive and verify the signed call.scored webhook.
 ---
 
-When a call finishes scoring, Athos POSTs a small, signed `call.scored` event to your registered URL.
-Your handler verifies the signature, ACKs fast, and then fetches the full score. It fires for
-practice calls and for an agency's [real calls](/backend/real-call-analysis) alike — once per
-scored call, with the same body.
+When a call reaches its outcome, Athos POSTs a small, signed `call.scored` event to your registered
+URL. Your handler verifies the signature, ACKs fast, and then fetches the full score. It fires for
+practice calls and for an agency's [real calls](/backend/real-call-analysis) alike — once per call,
+with the same body.
 
 ## Registering your endpoint
 
@@ -56,22 +56,13 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
 | `success` | `true` when the call scored. `false` when it didn't — see [When `success` is `false`](#when-success-is-false). |
 | `callId` | Public `athos_call_…` id. Look the call up with this. |
 | `source` | `"roleplay"` for a practice call run through the SDK; `"real_call"` for a real call ingested from the agency's dialer (see [Real-call analysis](/backend/real-call-analysis)). |
-| `agentId` / `agencyId` | The Athos ids of the rep who took the call and their agency — the ids registration returned. Always present. |
-| `platformAgentId` / `platformAgencyId` | Your own ids for the same rep and agency, under the names you registered them. `platformAgentId` on every call and every delivery is the id you registered that rep under, or `null` if you didn't register one — join on `agentId` in that case. `platformAgencyId` is the agency's, or `null`. |
+| `agentId` / `agencyId` | The Athos ids of the rep who took the call and their agency. Always present. |
+| `platformAgentId` / `platformAgencyId` | Your own ids for the same rep and agency, or `null` if you never registered one — join on `agentId` / `agencyId` then. See [Two id families](/concepts#two-id-families). |
 | `occurredAt` | ISO 8601 timestamp of the event. |
 | `requestId` | A delivery support id — quote it to Athos if a delivery looks wrong. |
 
-<Callout type="info">
-  A rep you registered with only an email or an NPN has no id of yours on file, so `platformAgentId`
-  is `null` for their calls — join on `agentId`. Registering your own rep id is still the
-  recommended path: it keeps the join to your own database direct.
-</Callout>
-
-<Callout type="info">
-  The body never contains a `score` or transcript (PHI stays out of webhook channels) and never
-  contains your internal routing ids. Fetch the score with
-  [`GET /v1/calls/:id`](/backend/reading-calls).
-</Callout>
+The body never contains a `score` or a transcript. Fetch those with
+[`GET /v1/calls/:id`](/backend/reading-calls).
 
 ## When `success` is `false`
 
@@ -92,19 +83,17 @@ The reason codes you can receive today:
 **This list is append-only.** New codes can be added without a breaking change, so branch on the
 codes you know and log anything unrecognised rather than switching exhaustively over the set.
 
-Three consequences worth designing for:
+What that means for your handler:
 
 - **A failed call is not retrievable.** `GET /v1/calls/:callId` answers `404 CALL_NOT_FOUND` for it,
-  and it never shows up in `GET /v1/calls` — the read API is scored-only by design. This webhook is
-  therefore the *only* signal that the attempt happened. If you need a record of every attempt,
-  record it when you mint the session token rather than expecting to read it back from Athos.
+  and it never shows up in `GET /v1/calls`. This webhook is the *only* signal that the attempt
+  happened — if you need a record of every attempt, record it when you mint the session token.
 - **There is no score to fetch.** Don't call `GET /v1/calls/:callId` on a `success: false` event.
-- **A failed call is not billed, but it does count toward your allowance.** It costs nothing on
-  your invoice. It still counts against your monthly usage allowance (the one
-  `TENANT_QUOTA_EXCEEDED` reports), because the call itself really did run.
-- **A real call the pipeline dropped before persisting it produces no delivery at all** — too
-  short to assess, no usable audio, or a transcript that could not be produced. A real call that was
-  persisted but whose scoring failed arrives as `success: false`, like a failed practice call. A
+- **A failed call is not billed, but it does count toward your monthly usage allowance** (the one
+  `TENANT_QUOTA_EXCEEDED` reports), because the call itself ran.
+- **A real call dropped before it was persisted produces no delivery at all** — too short to
+  assess, no usable audio, a transcript that could not be produced, or a rep who is not registered.
+  A real call that was persisted but could not be scored arrives as `success: false`. A
   re-disposition of an already-scored real call does not fire again.
 
 ## Verifying the signature

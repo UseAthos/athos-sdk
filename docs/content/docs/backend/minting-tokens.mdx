@@ -7,9 +7,8 @@ The browser SDK can't hold your API key, so your backend mints a short-lived, si
 token** for it. Expose this as your own endpoint that your authenticated frontend calls.
 
 A token is minted for a **registered agent**. Register each rep once with
-[`POST /v1/agents`](/backend/managing-agencies-and-agents) before their first practice call — that is
-the one-time setup cost per new person — and you mint with either of the agent's two ids, under the
-same names the agent object uses.
+[`POST /v1/agents`](/backend/managing-agencies-and-agents) before their first practice call, then
+mint with either of the agent's two ids.
 
 ## `POST /v1/session`
 
@@ -40,14 +39,10 @@ Exactly **one** of:
 Sending neither, or both, is `400 INVALID_REQUEST`. `null` is treated as omitted.
 
 <Callout type="info">
-  The mint takes an **id** and nothing else. `GET /v1/agents` is the flexible "do you have this
-  person?" lookup — it takes `npn`, `email`, `platformAgentId` or `agentId` as separate fields and
-  returns the agent's `id`. Turn a handle into an id there, then mint with the id.
+  The mint takes an **id** and nothing else — no agency id (the agency is derived from the agent),
+  and no NPN or email. To mint from an NPN or an email, resolve it to an id first with
+  [`GET /v1/agents`](/backend/managing-agencies-and-agents#look-up--get-v1agents).
 </Callout>
-
-The agency id you used to send on every mint is now registered **once** on the agency
-(`POST /v1/agents` or `PATCH /v1/agencies/{agencyId}` with `platformAgencyId`) and comes back as
-`platformAgencyId` on every call and every delivery — the field did not go away, it moved.
 
 **Response** `200 OK`
 
@@ -135,11 +130,8 @@ def athos_token():
 | 401 | `API_KEY_REVOKED` | The key was revoked — rotate. |
 | 403 | `TENANT_INACTIVE` | Your tenant is inactive. |
 | 403 | `TENANT_QUOTA_EXCEEDED` | Your tenant's monthly usage allowance is spent. |
-| 404 | `AGENT_NOT_FOUND` | No agent of yours is registered under that id. Register the rep first, or resolve a handle to an id with `GET /v1/agents`. |
+| 404 | `AGENT_NOT_FOUND` | No agent of yours is registered under that id. Register the rep first, or resolve an NPN or email to an id with `GET /v1/agents`. |
 
-Minting can fail with `403 TENANT_QUOTA_EXCEEDED` when your tenant's monthly allowance is spent. No
-token is issued, and retrying will not help — the allowance lifts at the start of the next calendar
-month. Surface it to the rep as "practice is unavailable this month" rather than as a retryable
-error, and contact your Athos representative to raise it.
-
-Full envelope and list: [error reference](/reference/errors).
+`TENANT_QUOTA_EXCEEDED` issues no token and is not retryable — the allowance lifts at the start of
+the next calendar month, or when your Athos contact raises it. Surface it to the rep as "practice is
+unavailable this month". Full envelope and list: [error reference](/reference/errors).
