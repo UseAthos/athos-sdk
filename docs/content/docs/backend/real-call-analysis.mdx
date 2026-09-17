@@ -21,7 +21,8 @@ bringing a second agency onto real calls is a second arrangement, not a flag on 
 for that fan-out when you onboard agencies.
 
 Once an agency is live, its reps' real calls appear in `GET /v1/calls` with `source: "ingestion"`
-and fire `call.scored` with the same signed body, once per scored call. An agency that has not been
+and fire `call.scored` with the same signed body, once per call (`success: false` when the call was
+kept but could not be scored — see [Webhooks](/backend/webhooks)). An agency that has not been
 switched on ingests nothing, is scored for nothing and is billed for nothing.
 
 ## Register your reps first

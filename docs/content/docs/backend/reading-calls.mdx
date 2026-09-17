@@ -157,7 +157,7 @@ A flat list of turns, in the order they were spoken:
 
 | Field | Type | What it is |
 | --- | --- | --- |
-| `role` | `"agent"` or `"beneficiary"` | Who spoke. **`agent` is your rep** — the human being graded. **`beneficiary` is the AI customer** they practised against. |
+| `role` | `"agent"` or `"beneficiary"` | Who spoke. **`agent` is your rep** — the human being graded. **`beneficiary` is the customer** — the AI persona on a practice call, the real person on the line on an `ingestion` call. |
 | `content` | string | What was said on that turn. |
 | `startTime`, `endTime` | number *(optional)* | Turn boundaries in seconds from the start of the call. Present on real (`ingestion`) calls, not on roleplay calls — read them defensively. |
 

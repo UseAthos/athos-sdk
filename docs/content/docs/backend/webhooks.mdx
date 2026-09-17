@@ -102,9 +102,10 @@ Three consequences worth designing for:
 - **A failed call is not billed, but it does count toward your allowance.** It costs nothing on
   your invoice. It still counts against your monthly usage allowance (the one
   `TENANT_QUOTA_EXCEEDED` reports), because the call itself really did run.
-- **A call that never produced a score produces no delivery at all.** A real call the pipeline
-  set aside before scoring — too short to assess, no usable audio, or a transcript that could not be
-  produced — sends nothing, and a re-disposition of an already-scored real call does not fire again.
+- **A real call the pipeline dropped before persisting it produces no delivery at all** — too
+  short to assess, no usable audio, or a transcript that could not be produced. A real call that was
+  persisted but whose scoring failed arrives as `success: false`, like a failed practice call. A
+  re-disposition of an already-scored real call does not fire again.
 
 ## Verifying the signature
 
