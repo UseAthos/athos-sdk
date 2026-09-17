@@ -20,17 +20,23 @@ Within your tenant, Athos keeps a **roster**:
   is findable afterwards by any of those or by the Athos id registration returns (`agentId`).
 
 See [Managing agencies and agents](/backend/managing-agencies-and-agents). Nobody from your world
-ever logs into Athos — the roster is maintained entirely through this API.
+ever logs into Athos — the roster is maintained entirely through this API. A rep must be registered
+before their first roleplay: a session token is only minted for a registered agent, by the id you
+registered them under.
 
-Two free-form labels also travel with a session today:
+Every call and every `call.scored` delivery carries two id families for the same rep and agency:
 
-- **`externalUserId`** — your stable id for the rep taking the call. Required when you mint a session.
-- **`externalAgencyId`** — an optional label for the rep's agency or team.
+- **`agentId` / `agencyId`** — the Athos ids registration returned. Always present.
+- **`externalUserId` / `externalAgencyId`** — your own ids. `externalUserId` on every call and every
+  delivery is the `platformAgentId` you registered that rep under, or `null` if you didn't register
+  one — join on `agentId` in that case. `externalAgencyId` is the agency's `platformAgencyId`, or
+  `null`. On the mint request, `externalUserId` is the id you mint with — your `platformAgentId` or
+  the Athos `agentId`.
 
 <Callout type="warn">
-  `externalAgencyId` is a **label and filter only** — never an authorization boundary. Anyone with
-  your API key can read every call in your tenant regardless of agency. If you run a multi-agency
-  product, enforce per-agency access **in your own backend**.
+  `externalAgencyId` is a **filter only** — never an authorization boundary. Anyone with your API
+  key can read every call in your tenant regardless of agency. If you run a multi-agency product,
+  enforce per-agency access **in your own backend**.
 </Callout>
 
 ## Identifiers

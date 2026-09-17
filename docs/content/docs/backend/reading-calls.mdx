@@ -17,8 +17,8 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 | `from` | ✅ | Lower bound (ISO 8601) on when the call **ended**. |
 | `to` | | Upper bound (ISO 8601) on when the call **ended**. |
 | `source` | | Filter by source. Every call is `roleplay` today. |
-| `externalUserId` | | Filter to one rep. |
-| `externalAgencyId` | | Filter to one agency (a label, never an auth boundary). |
+| `externalUserId` | | Filter to one rep by the `platformAgentId` you registered them under. An unknown value is an empty page. |
+| `externalAgencyId` | | Filter to one agency by its `platformAgencyId` (a filter, never an auth boundary). |
 | `limit` | | Page size, default `50`, max `100`. |
 | `cursor` | | Opaque token from a previous `nextCursor`. |
 
@@ -30,8 +30,10 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
     {
       "id": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
       "source": "roleplay",
+      "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+      "agentId": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
       "externalUserId": "rep_8842",
-      "externalAgencyId": "agency_chicago",
+      "externalAgencyId": "acme-7731",
       "drillKey": "ma-full-sale",
       "startedAt": "2026-06-05T14:39:40.295Z",
       "endedAt": "2026-06-05T14:49:52.295Z",
@@ -44,6 +46,15 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 ```
 
 `nextCursor` is `null` on the last page. Pass it back as `cursor` to page through.
+
+**Identity fields** — on every row, and on the detail below:
+
+| Field | What it is |
+| --- | --- |
+| `agencyId` | The Athos id of the agency this call belongs to (`athos_agency_…`). |
+| `agentId` | The Athos id of the rep who took the call (`athos_agent_…`). |
+| `externalUserId` | The `platformAgentId` you registered that rep under, or `null` if you didn't register one — join on `agentId` in that case. |
+| `externalAgencyId` | The `platformAgencyId` you registered that agency under, or `null`. |
 
 <Callout type="warn">
   **`from` and `to` filter on when the call *ended*, not on when it was scored**, and results come
@@ -106,8 +117,10 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
   "id": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
   "source": "roleplay",
   "status": "scored",
+  "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+  "agentId": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
   "externalUserId": "rep_8842",
-  "externalAgencyId": "agency_chicago",
+  "externalAgencyId": "acme-7731",
   "drillKey": "ma-full-sale",
   "startedAt": "2026-06-05T14:39:40.295Z",
   "endedAt": "2026-06-05T14:49:52.295Z",

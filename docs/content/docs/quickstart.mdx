@@ -3,9 +3,9 @@ title: Quickstart
 description: From zero to a live, scored roleplay call in about 15 minutes.
 ---
 
-This walks through the entire loop: mint a token, start a live call from the browser, receive the
-`call.scored` webhook, and read the score. Every REST call is server-to-server — keep your API key
-on your backend.
+This walks through the entire loop: register a rep, mint a token, start a live call from the
+browser, receive the `call.scored` webhook, and read the score. Every REST call is server-to-server —
+keep your API key on your backend.
 
 <Callout type="info">
   **Base URL:** `https://app.useathos.ai/api/external/v1`. You'll get an API key from your Athos
@@ -45,16 +45,37 @@ npm install @useathos/sdk
 
 <Step>
 
+### Register the rep (backend, once per person)
+
+A session token is only minted for a **registered agent**, so register each rep once — with your
+own id for them — before their first practice call. An agency is created for them automatically.
+
+```bash
+curl -X POST https://app.useathos.ai/api/external/v1/agents \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Dana","lastName":"Reyes","platformAgentId":"rep_8842","platformAgencyId":"acme-7731"}'
+# → 201 { "agent": { "id": "athos_agent_…", … }, "agency": { "id": "athos_agency_…", … } }
+```
+
+Registering twice is a `409 AGENT_ALREADY_EXISTS` whose `error.details` carries the existing ids.
+Details on [Managing agencies and agents](/backend/managing-agencies-and-agents).
+
+</Step>
+
+<Step>
+
 ### Mint a session token (backend)
 
 Your backend exchanges its API key for a short-lived, single-use **session token** scoped to one
-rep. Expose this as your own endpoint (e.g. `POST /athos/token`) that your frontend can call.
+registered rep — minted by the id you registered them under. Expose this as your own endpoint (e.g.
+`POST /athos/token`) that your frontend can call.
 
 ```bash
 curl -X POST https://app.useathos.ai/api/external/v1/session \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"externalUserId":"rep_8842","externalAgencyId":"agency_chicago"}'
+  -d '{"externalUserId":"rep_8842"}'
 # → { "token": "eyJhbGci…", "expiresAt": "2026-06-05T18:05:00.000Z" }
 ```
 
@@ -120,8 +141,10 @@ When the call finishes scoring, Athos POSTs a small, signed payload to your regi
   "success": true,
   "callId": "athos_call_GZ1DjOkZv_VEPoE-CJ8mp",
   "source": "roleplay",
+  "agentId": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
+  "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
   "externalUserId": "rep_8842",
-  "externalAgencyId": "agency_chicago",
+  "externalAgencyId": "acme-7731",
   "occurredAt": "2026-06-05T18:09:14.000Z",
   "requestId": "req_b1f0…"
 }

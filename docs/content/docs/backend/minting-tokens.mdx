@@ -6,6 +6,10 @@ description: Exchange your API key for a short-lived session token the SDK can u
 The browser SDK can't hold your API key, so your backend mints a short-lived, single-use **session
 token** for it. Expose this as your own endpoint that your authenticated frontend calls.
 
+A token is minted for a **registered agent**. Register each rep once with
+[`POST /v1/agents`](/backend/managing-agencies-and-agents) before their first practice call — that is
+the one-time setup cost per new person — and the id you register them under is the id you mint with.
+
 ## `POST /v1/session`
 
 ```http
@@ -21,14 +25,21 @@ Content-Type: application/json
     externalUserId: {
       type: 'string',
       required: true,
-      description: 'Your stable id for the rep taking the call. Echoed back on calls and webhooks.',
-    },
-    externalAgencyId: {
-      type: 'string',
-      description: 'Optional label for the rep\'s agency/team. A filter only — never an auth boundary.',
+      description:
+        'The id the rep was registered under: your own platformAgentId, or the Athos agent id registration returned as agent.id. Anything else — an NPN or an email address included — is 404 AGENT_NOT_FOUND.',
     },
   }}
 />
+
+<Callout type="info">
+  The mint takes an **id** and nothing else. `GET /v1/agents` is the flexible "do you have this
+  person?" lookup — it takes `npn`, `email`, `platformAgentId` or `agentId` as separate fields and
+  returns the agent's `id`. Turn a handle into an id there, then mint with the id.
+</Callout>
+
+The agency id you used to send on every mint is now registered **once** on the agency
+(`POST /v1/agents` or `PATCH /v1/agencies/{agencyId}` with `platformAgencyId`) and comes back as
+`externalAgencyId` on every call and every delivery — the field did not go away, it moved.
 
 **Response** `200 OK`
 
@@ -50,7 +61,7 @@ you decide which rep the token represents.
 curl -X POST https://app.useathos.ai/api/external/v1/session \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"externalUserId":"rep_8842","externalAgencyId":"agency_chicago"}'
+  -d '{"externalUserId":"rep_8842"}'
 ```
 </Tab>
 <Tab value="Node">
@@ -64,8 +75,7 @@ app.post('/athos/token', requireAuth, async (req, res) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      externalUserId: req.user.id,          // never trust a client-supplied id
-      externalAgencyId: req.user.agencyId,
+      externalUserId: req.user.id,          // the platformAgentId you registered; never client-supplied
     }),
   });
   const body = await r.json();
@@ -85,8 +95,7 @@ def athos_token():
         "https://app.useathos.ai/api/external/v1/session",
         headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
         json={
-            "externalUserId": current_user.id,        # never trust a client-supplied id
-            "externalAgencyId": current_user.agency_id,
+            "externalUserId": current_user.id,        # the platformAgentId you registered; never client-supplied
         },
         timeout=10,
     )
@@ -117,6 +126,7 @@ def athos_token():
 | 401 | `API_KEY_REVOKED` | The key was revoked — rotate. |
 | 403 | `TENANT_INACTIVE` | Your tenant is inactive. |
 | 403 | `TENANT_QUOTA_EXCEEDED` | Your tenant's monthly usage allowance is spent. |
+| 404 | `AGENT_NOT_FOUND` | No agent of yours is registered under that id. Register the rep first, or resolve a handle to an id with `GET /v1/agents`. |
 
 Minting can fail with `403 TENANT_QUOTA_EXCEEDED` when your tenant's monthly allowance is spent. No
 token is issued, and retrying will not help — the allowance lifts at the start of the next calendar

@@ -72,10 +72,11 @@ With no `agencyId`, the agent is placed in a **new agency named after them** —
 send the same `platformAgencyId` again, or pass the agency's `id` as `agencyId`.
 
 <Callout type="info">
-  **The ids you get back are the ones later releases build on.** This release lets you register,
-  look up and update. `agent.id` and `agency.id` are what sessions and call reads will accept next,
-  alongside your own `platformAgentId` / `platformAgencyId` — so you can store both, or store
-  neither and keep sending yours.
+  **The ids you get back are the ones everything else uses.** A session token is minted for a
+  registered agent by `platformAgentId` or `agent.id` (see
+  [Minting session tokens](/backend/minting-tokens)), and every call and every `call.scored`
+  delivery carries `agentId` / `agencyId` beside your own `externalUserId` / `externalAgencyId` —
+  so you can store both, or store neither and keep sending yours.
 </Callout>
 
 **Already registered?** Registering a rep who already exists under any handle you sent is a
@@ -221,4 +222,4 @@ broken:
   accepting one as yours would let a later session request resolve the wrong rep.
 - Each must be **unique within your account** — one `platformAgentId` per rep, one
   `platformAgencyId` per agency — because they are what Athos resolves a record by when you send
-  them.
+  them: the mint resolves `platformAgentId`, and the `GET /v1/calls` filters resolve both.

@@ -36,6 +36,7 @@ codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent other
 | `TENANT_INACTIVE` | 403 | Your tenant is inactive. |
 | `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant's monthly usage allowance is spent. It clears at the start of the next calendar month. |
 | `CALL_NOT_FOUND` | 404 | No such call for your tenant (also returned for another tenant's call). |
+| `AGENT_NOT_FOUND` | 404 | No agent of yours is registered under the id you minted with. Register the rep first, or resolve a handle (NPN, email) to an id with `GET /agents`. |
 | `AGENCY_NOT_FOUND` | 404 | No such agency for your tenant (also returned for another tenant's agency). Check the `agencyId` you stored. |
 | `AGENT_ALREADY_EXISTS` | 409 | A rep is already registered under one of the handles you sent. `details` carries `{ agentId, agencyId, matchedOn }` — use those ids instead of retrying. |
 | `SERVICE_UNAVAILABLE` | 503 | Athos is temporarily unavailable. Transient, but see the note below before retrying. |
@@ -49,7 +50,8 @@ codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent other
   not yours), and `AGENT_ALREADY_EXISTS` (register only). A lookup that matches nobody is a `200`
   with an empty `data`, never an error.
 - **`POST /session`** (mint): `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
-  `IP_NOT_ALLOWED`, `TENANT_QUOTA_EXCEEDED`.
+  `IP_NOT_ALLOWED`, `TENANT_QUOTA_EXCEEDED`, `AGENT_NOT_FOUND` (the id is not a registered rep's
+  `platformAgentId` or Athos `agentId` — an NPN or an email address lands here too).
 
   `TENANT_QUOTA_EXCEEDED` means your tenant's monthly usage allowance is spent. Retrying will not
   clear it: it lifts at the start of the next calendar month, or when your Athos representative

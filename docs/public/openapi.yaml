@@ -41,8 +41,15 @@ paths:
       operationId: mintSession
       description: |
         Called by **your backend** (server-to-server). Exchanges your API key for a short-lived,
-        single-use **session token** (a JWT, ~5-minute TTL) scoped to one of your reps. Hand the
-        returned `token` to the browser, which passes it to `AthosRoleplay.create({ token })`.
+        single-use **session token** (a JWT, ~5-minute TTL) scoped to one of your **registered**
+        agents. Hand the returned `token` to the browser, which passes it to
+        `AthosRoleplay.create({ token })`.
+
+        `externalUserId` must be an **id the rep was registered under** — your own `platformAgentId`,
+        or the Athos agent id registration returned as `agent.id`. Anything else, including an NPN or
+        an email address, is `404 AGENT_NOT_FOUND` even when a rep genuinely holds that value: use
+        `GET /agents` to turn a handle into an id. The agency is derived from the agent, and its
+        platform-side id from the agency record — the body no longer takes an agency id.
 
         This endpoint does **not** accept cross-origin (CORS) requests — never call it from a browser.
       security:
@@ -54,10 +61,14 @@ paths:
             schema:
               $ref: "#/components/schemas/MintSessionRequest"
             examples:
-              default:
+              byYourId:
+                summary: By the platformAgentId you registered
                 value:
                   externalUserId: "rep_8842"
-                  externalAgencyId: "agency_chicago"
+              byAthosId:
+                summary: By the Athos agent id registration returned
+                value:
+                  externalUserId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
       responses:
         "200":
           description: A short-lived single-use session token.
@@ -90,6 +101,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/AgentNotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -180,13 +193,17 @@ paths:
         - name: externalUserId
           in: query
           required: false
-          description: Filter to one of your reps.
+          description: >-
+            Filter to one of your reps by the `platformAgentId` you registered them under. An unknown
+            value is an empty page, never an error.
           schema:
             type: string
         - name: externalAgencyId
           in: query
           required: false
-          description: Label filter only — never an authorization boundary.
+          description: >-
+            Filter to one of your agencies by the `platformAgencyId` you registered it under. A filter
+            only — never an authorization boundary.
           schema:
             type: string
         - name: limit
@@ -592,6 +609,25 @@ components:
                   code: "AGENCY_NOT_FOUND"
                   message: "Agency not found"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    AgentNotFound:
+      description: >-
+        No agent of yours is registered under that id. The mint takes an id only — your
+        `platformAgentId` or the Athos `agent.id` — so an NPN or an email address lands here even when a
+        rep holds it; use `GET /agents` to resolve a handle to an id first.
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agentNotFound:
+              value:
+                error:
+                  code: "AGENT_NOT_FOUND"
+                  message: "No agent is registered under that id"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
     AgentAlreadyExists:
       description: >-
         A rep is already registered under one of the handles you sent. `details` carries the existing
@@ -653,6 +689,7 @@ components:
         - INVALID_REQUEST
         - DRILL_NOT_FOUND
         - CALL_NOT_FOUND
+        - AGENT_NOT_FOUND
         - AGENT_ALREADY_EXISTS
         - AGENCY_NOT_FOUND
         - SERVICE_UNAVAILABLE
@@ -672,11 +709,9 @@ components:
         externalUserId:
           type: string
           minLength: 1
-          description: Your stable id for the rep taking the call. Echoed back on calls + webhooks.
-        externalAgencyId:
-          type: string
-          minLength: 1
-          description: Optional label for the rep's agency. A filter/label only — never an auth boundary.
+          description: >-
+            The id the rep was registered under: your own `platformAgentId`, or the Athos agent id
+            registration returned as `agent.id`. Anything else is `404 AGENT_NOT_FOUND`.
 
     MintSessionResponse:
       type: object
@@ -756,10 +791,20 @@ components:
           description: Public call id (`athos_call_…`). Never the internal database id.
         source:
           $ref: "#/components/schemas/CallSource"
+        agencyId:
+          type: [string, "null"]
+          description: The Athos id of the agency this call belongs to (`athos_agency_…`).
+        agentId:
+          type: [string, "null"]
+          description: The Athos id of the rep who took the call (`athos_agent_…`).
         externalUserId:
           type: [string, "null"]
+          description: >-
+            The `platformAgentId` you registered that rep under, or `null` if you didn't register one —
+            join on `agentId` in that case.
         externalAgencyId:
           type: [string, "null"]
+          description: The `platformAgencyId` you registered that agency under, or `null`.
         drillKey:
           type: [string, "null"]
           description: The drill key the call practiced (e.g. `ma-full-sale`).
