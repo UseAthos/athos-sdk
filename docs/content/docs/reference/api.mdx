@@ -1,9 +1,9 @@
 ---
 title: API reference
-description: The four External API endpoints, auth, and the OpenAPI spec.
+description: The seven External API endpoints, auth, and the OpenAPI spec.
 ---
 
-The External API is four endpoints under a single base URL.
+The External API is seven endpoints under a single base URL.
 
 **Base URL:** `https://app.useathos.ai/api/external/v1`
 
@@ -11,12 +11,15 @@ The External API is four endpoints under a single base URL.
 
 | Method & path | Auth | CORS | Purpose |
 | --- | --- | --- | --- |
+| `POST /agents` | API key | ❌ | [Register an agent](/backend/managing-agencies-and-agents), creating their agency if needed. |
+| `GET /agents` | API key | ❌ | [Look agents up](/backend/managing-agencies-and-agents#look-up--get-v1agents) by any handle, or page the roster. |
+| `PATCH /agencies/{agencyId}` | API key | ❌ | [Rename an agency](/backend/managing-agencies-and-agents#update-an-agency--patch-v1agenciesagencyid) or set your own id on it. |
 | `POST /session` | API key | ❌ | [Mint a session token](/backend/minting-tokens) for the SDK. |
 | `POST /roleplay/session` | Session token | ✅ | Redeem a token and start a call. **Called by the SDK**, not you. |
 | `GET /calls` | API key | ❌ | [List scored calls](/backend/reading-calls) (cursor-paginated). |
 | `GET /calls/{callId}` | API key | ❌ | [Get full call detail](/backend/reading-calls) (transcript + score). |
 
-The three API-key endpoints are **server-to-server** and reject cross-origin requests. Only the SDK's
+The six API-key endpoints are **server-to-server** and reject cross-origin requests. Only the SDK's
 redeem endpoint accepts browser (CORS) requests. See [Authentication](/authentication).
 
 ## Conventions

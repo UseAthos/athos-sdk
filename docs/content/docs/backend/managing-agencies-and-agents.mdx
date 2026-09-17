@@ -1,0 +1,229 @@
+---
+title: Managing agencies and agents
+description: Register your reps, get an agency for each customer for free, and look anyone up by the id you already hold.
+---
+
+Athos keeps a **roster** for your account: the **agencies** you serve and the **agents** (reps) in
+each. Every call is attributed to one agent and one agency, so the roster is what makes "show me
+this agency's calls" and "score this rep" possible. Your backend maintains it with three calls.
+
+The whole integration is one question and one answer: **"do you have this person?"** — look them
+up by any id you already hold; if not, register them and get an agency for free. The two ids that
+come back are what you use everywhere else.
+
+## Register — `POST /v1/agents`
+
+```http
+POST https://app.useathos.ai/api/external/v1/agents
+Authorization: Bearer ath_live_…
+Content-Type: application/json
+```
+
+**Request body**
+
+<TypeTable
+  type={{
+    firstName: { type: 'string', required: true },
+    lastName: { type: 'string', required: true },
+    email: { type: 'string', description: 'Stored lowercased.' },
+    npn: { type: 'string', description: '4–10 digits. Quotes and spaces are stripped first.' },
+    platformAgentId: {
+      type: 'string',
+      description: 'Your own id for the rep. Unique within your account; may not begin with athos_agent_ or athos_agency_.',
+    },
+    agencyId: {
+      type: 'string',
+      description: 'Put the agent in this existing agency (an athos_agency_… id you were given). Omit it to create one.',
+    },
+    platformAgencyId: {
+      type: 'string',
+      description: 'Your own id for the NEW agency. Not allowed together with agencyId — set it on an existing agency with PATCH.',
+    },
+  }}
+/>
+
+At least one of `npn`, `email` or `platformAgentId` is required.
+
+**Response** `201 Created`
+
+```json
+{
+  "agent": {
+    "id": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
+    "firstName": "Dana",
+    "lastName": "Reyes",
+    "email": "dana@acme.test",
+    "npn": null,
+    "platformAgentId": "rep_8842",
+    "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+    "createdAt": "2026-09-16T14:02:11.000Z"
+  },
+  "agency": {
+    "id": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+    "name": "Dana Reyes",
+    "platformAgencyId": "acme-7731",
+    "createdAt": "2026-09-16T14:02:11.000Z"
+  }
+}
+```
+
+With no `agencyId`, the agent is placed in a **new agency named after them** — there is no separate
+"create an agency" step. Rename it whenever you like (below). To add a second rep to that agency,
+pass its `id` as `agencyId`.
+
+<Callout type="info">
+  **Store both ids.** `agent.id` is one of the two ids the session mint will accept from the next
+  release (the other is your own `platformAgentId`), and `agency.id` is how you address that agency
+  on every later call.
+</Callout>
+
+**Already registered?** Registering a rep who already exists under any handle you sent is a
+`409 AGENT_ALREADY_EXISTS`, not a silent success — a "create" that quietly returns an existing
+record hides a bug on your side. The response carries the existing ids so a create retried after a
+network timeout resolves in one call:
+
+```json
+{
+  "error": {
+    "code": "AGENT_ALREADY_EXISTS",
+    "message": "An agent with that email is already registered",
+    "requestId": "req_…",
+    "details": {
+      "agentId": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
+      "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+      "matchedOn": "email"
+    }
+  }
+}
+```
+
+<Tabs items={['curl', 'Node']}>
+<Tab value="curl">
+```bash
+curl -X POST https://app.useathos.ai/api/external/v1/agents \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Dana","lastName":"Reyes","email":"dana@acme.test","platformAgentId":"rep_8842","platformAgencyId":"acme-7731"}'
+```
+</Tab>
+<Tab value="Node">
+```ts
+const r = await fetch('https://app.useathos.ai/api/external/v1/agents', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.ATHOS_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    firstName: rep.firstName,
+    lastName: rep.lastName,
+    email: rep.email,
+    platformAgentId: rep.id,         // your id for the rep
+    platformAgencyId: rep.agencyId,  // your id for their agency (new agency only)
+  }),
+});
+const body = await r.json();
+if (r.status === 201) {
+  await db.saveAthosIds(rep.id, body.agent.id, body.agency.id);
+} else if (body.error?.code === 'AGENT_ALREADY_EXISTS') {
+  await db.saveAthosIds(rep.id, body.error.details.agentId, body.error.details.agencyId);
+}
+```
+</Tab>
+</Tabs>
+
+## Look up — `GET /v1/agents`
+
+The "do you have this person?" call. Filter by **any one** of the four handles and get that agent
+back — or an empty `data` when nobody matches. A miss is a normal answer, **never a 404**.
+
+| Param | Notes |
+| --- | --- |
+| `agentId` | The `athos_agent_…` id you were given. |
+| `platformAgentId` | Your own id for the rep, as registered. |
+| `npn` | Non-digits are stripped before matching. |
+| `email` | Matched case-insensitively. |
+| `agencyId` | Restrict to one of your agencies. Combines with a handle by AND. |
+| `limit` | Page size, default `50`, max `100`. |
+| `cursor` | Opaque token from a previous `nextCursor`. |
+
+With `agencyId` alone it lists that agency's agents. With **no filter at all** it lists your whole
+roster — the way to ask "what have I registered?".
+
+```bash
+curl -G https://app.useathos.ai/api/external/v1/agents \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  --data-urlencode "email=dana@acme.test"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
+      "firstName": "Dana",
+      "lastName": "Reyes",
+      "email": "dana@acme.test",
+      "npn": null,
+      "platformAgentId": "rep_8842",
+      "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+      "createdAt": "2026-09-16T14:02:11.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+### Paging, once
+
+Every list endpoint in this API pages the same way: pass `limit` and the opaque `cursor` you were
+last given, stop when `nextCursor` is `null`, and never parse a cursor. `GET /v1/agents` and
+[`GET /v1/calls`](/backend/reading-calls) take the same parameters and return the same
+`{ data, nextCursor }` envelope, so one pager loop serves both.
+
+## Update an agency — `PATCH /v1/agencies/{agencyId}`
+
+Rename an agency and/or set your own id on it. Send only what you are changing; at least one field
+is required.
+
+<TypeTable
+  type={{
+    name: { type: 'string' },
+    platformAgencyId: {
+      type: 'string',
+      description: 'Your own id for the agency. Unique within your account; may not begin with athos_agent_ or athos_agency_.',
+    },
+  }}
+/>
+
+```bash
+curl -X PATCH https://app.useathos.ai/api/external/v1/agencies/athos_agency_V1StGXR8Z5jdHi6B-myT \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Acme Senior Solutions"}'
+```
+
+**Response** `200 OK` — the updated agency object. An agency that is not yours answers
+`404 AGENCY_NOT_FOUND`.
+
+An agency created for you at a rep's registration has no `platformAgencyId`; this is how it gets
+one. It is stored and echoed back on the agency record.
+
+## Two rules for your own ids
+
+`platformAgentId` and `platformAgencyId` are **your** ids, stored and echoed back so you never have
+to map ours to yours. Two rules apply to both, and each shows up as a `400 INVALID_REQUEST` if
+broken:
+
+- They may not begin with `athos_agent_` or `athos_agency_`. Those prefixes are Athos ids, and
+  accepting one as yours would let a later session request resolve the wrong rep.
+- Each must be **unique within your account** — one `platformAgentId` per rep, one
+  `platformAgencyId` per agency — because they are what your ids are matched and filtered on.
+
+## Which id attributes a rep's calls
+
+The id you register a rep under is also what attributes their real calls when Athos ingests them
+from a dialer. Attribution tries, in order: the rep's **NPN**, then **your own `platformAgentId`**,
+then their **email**, then their full name. Registering your own rep id is enough when your platform
+is the dialer. If an agency dials through a **third-party** platform whose agent ids you never
+registered, put the rep's email or NPN on file too, so those calls still find them.

@@ -7,14 +7,16 @@ info:
     url: https://docs.useathos.ai
   description: |
     The Athos **External API** lets a reseller integrate Athos AI roleplay and scored-call data into
-    their own product. It has four endpoints across two auth schemes:
+    their own product. It has seven endpoints across two auth schemes:
 
-    - **API key** (`ath_live_…`) — server-to-server, used by your backend to mint sessions and read calls.
+    - **API key** (`ath_live_…`) — server-to-server, used by your backend to manage your roster of
+      agencies and agents, mint sessions and read calls.
     - **Session token** (a short-lived, single-use JWT your backend mints) — used **only** by the
       browser SDK to redeem a live roleplay session.
 
     All responses carry an `X-Athos-Request-Id` header. Success bodies are returned **raw** (not
-    wrapped). Errors use the envelope `{ "error": { "code", "message", "requestId" } }`.
+    wrapped). Errors use the envelope `{ "error": { "code", "message", "requestId" } }`, plus an
+    optional `details` object on the errors that document one.
 
     > The live voice transport is hidden behind the `@useathos/sdk`. The
     > `connectionTicket`/`connectionUrl` returned by the redeem endpoint are opaque and consumed
@@ -24,6 +26,8 @@ servers:
     description: Production
 
 tags:
+  - name: Roster
+    description: Register and look up your agents; rename your agencies.
   - name: Sessions
     description: Mint and redeem roleplay sessions.
   - name: Calls
@@ -260,6 +264,198 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /agents:
+    post:
+      tags: [Roster]
+      summary: Register an agent
+      operationId: registerAgent
+      description: |
+        Called by **your backend**. Registers a rep with a name and at least one handle — `npn`,
+        `email` or your own `platformAgentId`. With no `agencyId` the agent is placed in a **new
+        agency named after them**, and both records come back; pass an existing `agencyId` to add
+        the agent to that agency instead. Store the returned `agent.id` and `agency.id` — they are
+        how you refer to both everywhere else.
+
+        A rep already registered under any handle you sent answers `409 AGENT_ALREADY_EXISTS`,
+        with the existing ids in `error.details`, rather than silently returning them.
+
+        Server-to-server only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterAgentRequest"
+            examples:
+              newAgency:
+                summary: First rep — the agency is created for you
+                value:
+                  firstName: "Dana"
+                  lastName: "Reyes"
+                  email: "dana@acme.test"
+                  platformAgentId: "rep_8842"
+                  platformAgencyId: "acme-7731"
+              existingAgency:
+                summary: Another rep in that agency
+                value:
+                  firstName: "Sam"
+                  lastName: "Ortiz"
+                  npn: "20224801"
+                  agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+      responses:
+        "201":
+          description: The agent, and the agency they belong to.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterAgentResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/AgencyNotFound"
+        "409":
+          $ref: "#/components/responses/AgentAlreadyExists"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    get:
+      tags: [Roster]
+      summary: Look up agents
+      operationId: listAgents
+      description: |
+        Called by **your backend**. The "do you have this person?" call: filter by any one handle —
+        `agentId`, `platformAgentId`, `npn` or `email` — and get that agent back, or an empty `data`
+        when nobody matches (**never a 404**). With `agencyId` alone it lists that agency's agents;
+        with no filter at all it lists your whole roster. `agencyId` combines with a handle by AND.
+
+        Paged exactly like `GET /calls`: pass `limit` and the opaque `cursor` you were last given,
+        stop when `nextCursor` is `null`. Server-to-server only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: agentId
+          in: query
+          required: false
+          description: The Athos agent id (`athos_agent_…`) returned at registration.
+          schema:
+            type: string
+        - name: platformAgentId
+          in: query
+          required: false
+          description: Your own id for the rep, as registered.
+          schema:
+            type: string
+        - name: npn
+          in: query
+          required: false
+          description: The rep's NPN. Non-digits are stripped before matching.
+          schema:
+            type: string
+        - name: email
+          in: query
+          required: false
+          description: The rep's email. Matched case-insensitively.
+          schema:
+            type: string
+        - name: agencyId
+          in: query
+          required: false
+          description: Restrict to one of your agencies. Another tenant's id answers `404 AGENCY_NOT_FOUND`.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 50, capped at 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque pagination token from a previous response's `nextCursor`.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The matching agents — possibly none.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAgentsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/AgencyNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /agencies/{agencyId}:
+    patch:
+      tags: [Roster]
+      summary: Update an agency
+      operationId: updateAgency
+      description: |
+        Called by **your backend**. Rename an agency and/or set your own `platformAgencyId` on it —
+        the way an agency that was created for you at a rep's registration gets your id. Send only
+        the fields you are changing; at least one is required.
+
+        An agency belonging to a different tenant returns `404 AGENCY_NOT_FOUND`. Server-to-server
+        only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: agencyId
+          in: path
+          required: true
+          description: The Athos agency id (`athos_agency_…`).
+          schema:
+            type: string
+          example: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgencyRequest"
+      responses:
+        "200":
+          description: The updated agency.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/AgencyNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -378,6 +574,45 @@ components:
                   message: "Call not found"
                   requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
 
+    AgencyNotFound:
+      description: No such agency for this tenant (also returned for another tenant's agency).
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agencyNotFound:
+              value:
+                error:
+                  code: "AGENCY_NOT_FOUND"
+                  message: "Agency not found"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+    AgentAlreadyExists:
+      description: >-
+        A rep is already registered under one of the handles you sent. `details` carries the existing
+        agent's ids and which handle matched, so a retried create resolves in one call.
+      headers:
+        X-Athos-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          examples:
+            agentAlreadyExists:
+              value:
+                error:
+                  code: "AGENT_ALREADY_EXISTS"
+                  message: "An agent with that email is already registered"
+                  requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+                  details:
+                    agentId: "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt"
+                    agencyId: "athos_agency_V1StGXR8Z5jdHi6B-myT"
+                    matchedOn: "email"
+
   schemas:
     Error:
       type: object
@@ -394,6 +629,12 @@ components:
               description: Human-readable. Not machine-parsable — branch on `code`, not `message`.
             requestId:
               type: string
+            details:
+              type: object
+              additionalProperties: true
+              description: >-
+                Machine-readable extras, present only on the errors that document one (today:
+                `AGENT_ALREADY_EXISTS`).
 
     ErrorCode:
       type: string
@@ -410,6 +651,8 @@ components:
         - INVALID_REQUEST
         - DRILL_NOT_FOUND
         - CALL_NOT_FOUND
+        - AGENT_ALREADY_EXISTS
+        - AGENCY_NOT_FOUND
         - SERVICE_UNAVAILABLE
         - INTERNAL_ERROR
 
@@ -661,3 +904,121 @@ components:
         nextCursor:
           type: [string, "null"]
           description: Pass as `cursor` to fetch the next page. `null` on the last page.
+
+    PlatformSuppliedId:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: >-
+        Your own id for the record. Must not begin with `athos_agent_` or `athos_agency_` — those
+        are Athos ids — and must be unique within your account.
+
+    Agent:
+      type: object
+      required: [id, firstName, lastName, email, npn, platformAgentId, agencyId, createdAt]
+      properties:
+        id:
+          type: string
+          description: The Athos agent id (`athos_agent_…`). Store it.
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: [string, "null"]
+          description: Lowercased. `null` when the rep was registered without one.
+        npn:
+          type: [string, "null"]
+          description: Digits only, 4–10 of them. `null` when the rep was registered without one.
+        platformAgentId:
+          type: [string, "null"]
+          description: Your own id for the rep. `null` when the rep was registered without one.
+        agencyId:
+          type: string
+          description: The Athos id (`athos_agency_…`) of the agency this agent belongs to.
+        createdAt:
+          type: string
+          format: date-time
+
+    Agency:
+      type: object
+      required: [id, name, platformAgencyId, createdAt]
+      properties:
+        id:
+          type: string
+          description: The Athos agency id (`athos_agency_…`). Store it.
+        name:
+          type: string
+          description: Defaults to the first registered rep's full name. Rename with `PATCH /agencies/{agencyId}`.
+        platformAgencyId:
+          type: [string, "null"]
+          description: Your own id for the agency, or `null` if you never set one.
+        createdAt:
+          type: string
+          format: date-time
+
+    RegisterAgentRequest:
+      type: object
+      required: [firstName, lastName]
+      description: >-
+        At least one of `npn`, `email` or `platformAgentId` is required. `platformAgencyId` may only
+        accompany a registration that creates a new agency — with `agencyId` it is a `400`; set it
+        on an existing agency with `PATCH /agencies/{agencyId}`.
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          description: Stored lowercased.
+        npn:
+          type: string
+          pattern: "^\\d{4,10}$"
+          description: 4–10 digits after non-digits are stripped.
+        platformAgentId:
+          $ref: "#/components/schemas/PlatformSuppliedId"
+        agencyId:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Put the agent in this existing agency instead of creating one.
+        platformAgencyId:
+          $ref: "#/components/schemas/PlatformSuppliedId"
+
+    RegisterAgentResponse:
+      type: object
+      required: [agent, agency]
+      properties:
+        agent:
+          $ref: "#/components/schemas/Agent"
+        agency:
+          $ref: "#/components/schemas/Agency"
+
+    ListAgentsResponse:
+      type: object
+      required: [data, nextCursor]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Agent"
+        nextCursor:
+          type: [string, "null"]
+          description: Pass as `cursor` to fetch the next page. `null` on the last page.
+
+    UpdateAgencyRequest:
+      type: object
+      description: At least one of `name` or `platformAgencyId` is required.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        platformAgencyId:
+          $ref: "#/components/schemas/PlatformSuppliedId"

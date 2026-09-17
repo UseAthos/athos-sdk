@@ -5,13 +5,25 @@ description: Tenancy, identifiers, the call lifecycle, and call sources.
 
 A few ideas show up everywhere in this API. Read this once and the rest of the docs will read faster.
 
-## Tenancy: you, your reps, your agencies
+## Tenancy: you, your agencies, your agents
 
-Your Athos account is a single **tenant** (a "reseller"). Everything you create — calls, scores,
-usage — belongs to your tenant, and the API only ever returns your tenant's data. Your API key
-**is** the tenant boundary.
+Your Athos account is a single **tenant** (a "reseller"). Everything you create — agencies, agents,
+calls, scores, usage — belongs to your tenant, and the API only ever returns your tenant's data.
+Your API key **is** the tenant boundary.
 
-Within your tenant you describe two things with free-form string ids that **you** own:
+Within your tenant, Athos keeps a **roster**:
+
+- An **agency** is one of your customers — a group of reps. It is created for you the first time
+  you register a rep without naming one, and you can rename it.
+- An **agent** is a rep. Each agent belongs to exactly one agency and is registered once per tenant,
+  under any of four handles: their NPN, their email, **your own id for them** (`platformAgentId`),
+  or the Athos id registration returns (`agentId`).
+
+See [Managing agencies and agents](/backend/managing-agencies-and-agents). Nobody from your world
+ever logs into Athos — the roster exists so calls can be attributed and read back by agency and by
+agent, entirely through this API.
+
+Two free-form labels also travel with a session today:
 
 - **`externalUserId`** — your stable id for the rep taking the call. Required when you mint a session.
 - **`externalAgencyId`** — an optional label for the rep's agency or team.
@@ -22,17 +34,18 @@ Within your tenant you describe two things with free-form string ids that **you*
   product, enforce per-agency access **in your own backend**.
 </Callout>
 
-Athos does not model managers, hierarchies, or per-agency tenants in v1. The pyramid is flat:
-**tenant → reps**.
-
 ## Identifiers
 
 | Id | Looks like | What it is |
 | --- | --- | --- |
+| **`agencyId`** | `athos_agency_V1StGXR8…` | The stable, public id for one of your agencies. Returned at registration; use it for `PATCH /v1/agencies/:id` and to register further agents into it. |
+| **`agentId`** | `athos_agent_bR4kQ2wZ…` | The stable, public id for a rep. Returned at registration; look the rep up by it with `GET /v1/agents?agentId=`. |
 | **`callId`** | `athos_call_GZ1DjOkZv_…` | The stable, public id for a call. Use it for `GET /v1/calls/:id`, in webhooks, and in the SDK `ended` event. **This is the only call id that crosses the API boundary.** |
 | **`requestId`** | `req_2f8c1e94-…` | Returned on every API response as the `X-Athos-Request-Id` header. Quote it in support tickets. |
 
-You'll never see an internal database id. `callId` is a semver-stable public contract.
+You'll never see an internal database id. All three are opaque, semver-stable public contracts: a
+resource returns its own id as `id`, and refers to another resource as `<resource>Id` (an agent's
+`agencyId`, for example).
 
 ## The call lifecycle
 
