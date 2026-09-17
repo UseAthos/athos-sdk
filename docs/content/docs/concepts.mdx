@@ -78,5 +78,12 @@ in-progress calls. The webhook is your push signal; polling `GET /v1/calls` is t
 
 ## Call sources
 
-Every call carries a **`source`**. Today it is always **`roleplay`** — a practice call your rep ran
-through the SDK.
+Every call carries a **`source`**:
+
+- **`roleplay`** — a practice call your rep ran through the SDK.
+- **`ingestion`** — a real call one of your agencies' reps made on their dialer, ingested and scored
+  by Athos once that agency has been switched on. See
+  [Real-call analysis](/backend/real-call-analysis).
+
+Both kinds fire the same `call.scored` webhook, carry the same ids, and are read from the same
+endpoints. A real call has no `drillKey`.

@@ -188,7 +188,7 @@ paths:
         - name: source
           in: query
           required: false
-          description: Filter by call source.
+          description: Filter by call source (`roleplay` or `ingestion`). Omit it for both.
           schema:
             $ref: "#/components/schemas/CallSource"
         - name: externalUserId
@@ -700,8 +700,8 @@ components:
       type: string
       enum: [roleplay, ingestion]
       description: >
-        The call source. Every call is `roleplay` — a practice call run through the SDK. The enum
-        lists every value the field can carry so a generated client never rejects one.
+        The call source. `roleplay` is a practice call run through the SDK; `ingestion` is a real
+        call ingested from an agency's dialer once Athos has switched that agency on.
 
     MintSessionRequest:
       type: object
@@ -812,7 +812,7 @@ components:
           description: The `platformAgencyId` you registered that agency under, or `null`.
         drillKey:
           type: [string, "null"]
-          description: The drill key the call practiced (e.g. `ma-full-sale`).
+          description: The drill key the call practiced (e.g. `ma-full-sale`). `null` on an `ingestion` call.
         startedAt:
           type: [string, "null"]
           format: date-time
@@ -843,13 +843,13 @@ components:
         startTime:
           type: number
           description: >
-            Optional. Start of the turn, in seconds from the beginning of the call. Not present on
-            roleplay calls today.
+            Optional. Start of the turn, in seconds from the beginning of the call. Present on
+            `ingestion` calls, not on roleplay calls.
         endTime:
           type: number
           description: >
-            Optional. End of the turn, in seconds from the beginning of the call. Not present on
-            roleplay calls today.
+            Optional. End of the turn, in seconds from the beginning of the call. Present on
+            `ingestion` calls, not on roleplay calls.
 
     CallDetail:
       allOf:
@@ -878,7 +878,7 @@ components:
                 either a recording URL stored with the call, or `null`, meaning there is no
                 recording you can play (calls practiced before recording was enabled, and the rare
                 case where a recording exists but could not be prepared for playback; retry the
-                request).
+                request). On an `ingestion` call it is `null` in this release.
             audioUrlExpiresAt:
               type: [string, "null"]
               format: date-time
@@ -901,8 +901,8 @@ components:
       additionalProperties: true
       required: [overallScore, summary, feedback]
       description: |
-        The scored result of a roleplay call. `overallScore`, `summary` and `feedback` are always
-        present; `complianceScorecard` is optional. `additionalProperties` is `true` because keys
+        The scored result of a call, practice or real. `overallScore`, `summary` and `feedback` are
+        always present; `complianceScorecard` is optional. `additionalProperties` is `true` because keys
         can be added: read the fields you know and don't assume these are the only ones.
       properties:
         overallScore:
@@ -923,9 +923,10 @@ components:
           type: object
           additionalProperties: true
           description: >
-            The compliance scorecard for the call, section by section. **Optional** — present only on
-            Medicare Advantage drills, and only when the call ran long enough to assess (roughly five
-            minutes). The key is absent, not null, when there is none, so check for its presence
+            The compliance scorecard for the call, section by section. **Optional** — on practice
+            calls present only on Medicare Advantage drills, and only when the call ran long enough
+            to assess (roughly five minutes); on an `ingestion` call present when the call was
+            assessed for compliance. The key is absent, not null, when there is none, so check for its presence
             rather than assuming it. Section contents are graded content and may gain items over
             time; `totalScore` is the one fixed field.
           properties:

@@ -4,7 +4,9 @@ description: Receive and verify the signed call.scored webhook.
 ---
 
 When a call finishes scoring, Athos POSTs a small, signed `call.scored` event to your registered URL.
-Your handler verifies the signature, ACKs fast, and then fetches the full score.
+Your handler verifies the signature, ACKs fast, and then fetches the full score. It fires for
+practice calls and for an agency's [real calls](/backend/real-call-analysis) alike — once per
+scored call, with the same body.
 
 ## Registering your endpoint
 
@@ -53,7 +55,7 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
 | `event` | Always `"call.scored"` in v1. |
 | `success` | `true` when the call scored. `false` when it didn't — see [When `success` is `false`](#when-success-is-false). |
 | `callId` | Public `athos_call_…` id. Look the call up with this. |
-| `source` | Always `"roleplay"` today. |
+| `source` | `"roleplay"` for a practice call run through the SDK; `"ingestion"` for a real call ingested from the agency's dialer (see [Real-call analysis](/backend/real-call-analysis)). |
 | `agentId` / `agencyId` | The Athos ids of the rep who took the call and their agency — the ids registration returned. Always present. |
 | `externalUserId` / `externalAgencyId` | Your own ids for the same rep and agency. `externalUserId` on every call and every delivery is the `platformAgentId` you registered that rep under, or `null` if you didn't register one — join on `agentId` in that case. `externalAgencyId` is the agency's `platformAgencyId`, or `null`. |
 | `occurredAt` | ISO 8601 timestamp of the event. |
@@ -100,6 +102,9 @@ Three consequences worth designing for:
 - **A failed call is not billed, but it does count toward your allowance.** It costs nothing on
   your invoice. It still counts against your monthly usage allowance (the one
   `TENANT_QUOTA_EXCEEDED` reports), because the call itself really did run.
+- **A call that never produced a score produces no delivery at all.** A real call the pipeline
+  set aside before scoring — too short to assess, no usable audio, or a transcript that could not be
+  produced — sends nothing, and a re-disposition of an already-scored real call does not fire again.
 
 ## Verifying the signature
 

@@ -4,7 +4,8 @@ description: Register your reps, get an agency for each customer for free, and l
 ---
 
 Athos keeps a **roster** for your account: the **agencies** you serve and the **agents** (reps) in
-each. Your backend maintains it with three calls: register, look up, update.
+each. Your backend maintains it with three calls: register, look up, update. Every call — practice
+or real — is attributed to one agent and one agency on this roster.
 
 The whole integration is one question and one answer: **"do you have this person?"** — look them
 up by any id you already hold; if not, register them and get an agency for free. The two ids that
@@ -211,6 +212,15 @@ curl -X PATCH https://app.useathos.ai/api/external/v1/agencies/athos_agency_V1St
 
 An agency created for you at a rep's registration has no `platformAgencyId`; this is how it gets
 one. It is stored and echoed back on the agency record.
+
+## Which id attributes a rep's calls
+
+The id you register a rep under is also what attributes their real calls when Athos ingests them
+from a dialer. Attribution tries, in order: the rep's **NPN**, then **your own `platformAgentId`**,
+then their **email**, then their full name. Registering your own rep id is enough when your platform
+is the dialer. If an agency dials through a **third-party** platform whose agent ids you never
+registered, put the rep's email or NPN on file too, so those calls still find them. See
+[Real-call analysis](/backend/real-call-analysis).
 
 ## Two rules for your own ids
 

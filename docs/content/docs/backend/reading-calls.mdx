@@ -16,7 +16,7 @@ Returns **scored** calls for your tenant, newest first (`endedAt` descending), c
 | --- | --- | --- |
 | `from` | ✅ | Lower bound (ISO 8601) on when the call **ended**. |
 | `to` | | Upper bound (ISO 8601) on when the call **ended**. |
-| `source` | | Filter by source. Every call is `roleplay` today. |
+| `source` | | Filter by source: `roleplay` (practice calls) or `ingestion` (an agency's [real calls](/backend/real-call-analysis)). Omit it for both. |
 | `externalUserId` | | Filter to one rep by the `platformAgentId` you registered them under. An unknown value is an empty page. |
 | `externalAgencyId` | | Filter to one agency by its `platformAgencyId` (a filter, never an auth boundary). |
 | `limit` | | Page size, default `50`, max `100`. |
@@ -159,7 +159,7 @@ A flat list of turns, in the order they were spoken:
 | --- | --- | --- |
 | `role` | `"agent"` or `"beneficiary"` | Who spoke. **`agent` is your rep** — the human being graded. **`beneficiary` is the AI customer** they practised against. |
 | `content` | string | What was said on that turn. |
-| `startTime`, `endTime` | number *(optional)* | Turn boundaries in seconds from the start of the call. Not present on roleplay calls today — read them defensively. |
+| `startTime`, `endTime` | number *(optional)* | Turn boundaries in seconds from the start of the call. Present on real (`ingestion`) calls, not on roleplay calls — read them defensively. |
 
 Get those two the wrong way round and every speaker label in your UI is inverted.
 
@@ -176,9 +176,12 @@ stored recording URL (older calls do), or `audioUrl` is `null` too and there is 
 call practised before recording was enabled, or the rare case where a recording exists but could not
 be prepared for playback, which a later request usually resolves.
 
+A real (`ingestion`) call's `audioUrl` is `null` in this release; a playable, short-lived link for
+real calls lands in a later one.
+
 ## The `score` object
 
-For a **roleplay** call, `score` always has three fields, plus one optional:
+For every call, practice or real, `score` always has three fields, plus one optional:
 
 | Field | Type | What it is |
 | --- | --- | --- |
@@ -192,9 +195,10 @@ call, or when the analysis step didn't complete, Athos has no prose to give even
 scored.
 
 <Callout type="info">
-  **`complianceScorecard` is optional — check for it, don't assume it.** It appears on Medicare
-  Advantage drills only, and only when the call ran long enough to assess (roughly five minutes); a
-  short MA call and every Final Expense call simply omit the key. It is *absent*, not `null`, so
+  **`complianceScorecard` is optional — check for it, don't assume it.** On practice calls it
+  appears on Medicare Advantage drills only, and only when the call ran long enough to assess
+  (roughly five minutes); a short MA call and every Final Expense call simply omit the key. On a
+  real call it is present when the call was assessed for compliance. It is *absent*, not `null`, so
   `if ('complianceScorecard' in call.score)` (or a truthiness check) is the right guard. Its inner
   sections are graded content and may gain items over time — read `totalScore` and treat the rest as
   display detail.
