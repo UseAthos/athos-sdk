@@ -8,7 +8,8 @@ token** for it. Expose this as your own endpoint that your authenticated fronten
 
 A token is minted for a **registered agent**. Register each rep once with
 [`POST /v1/agents`](/backend/managing-agencies-and-agents) before their first practice call — that is
-the one-time setup cost per new person — and the id you register them under is the id you mint with.
+the one-time setup cost per new person — and you mint with either of the agent's two ids, under the
+same names the agent object uses.
 
 ## `POST /v1/session`
 
@@ -20,16 +21,23 @@ Content-Type: application/json
 
 **Request body**
 
+Exactly **one** of:
+
 <TypeTable
   type={{
-    externalUserId: {
+    platformAgentId: {
       type: 'string',
-      required: true,
       description:
-        'The id the rep was registered under: your own platformAgentId, or the Athos agent id registration returned as agent.id. Anything else — an NPN or an email address included — is 404 AGENT_NOT_FOUND.',
+        'The id you registered the rep under. An NPN or an email address is not an id — an unregistered value is 404 AGENT_NOT_FOUND.',
+    },
+    agentId: {
+      type: 'string',
+      description: 'The Athos agent id registration returned as agent.id.',
     },
   }}
 />
+
+Sending neither, or both, is `400 INVALID_REQUEST`. `null` is treated as omitted.
 
 <Callout type="info">
   The mint takes an **id** and nothing else. `GET /v1/agents` is the flexible "do you have this
@@ -61,7 +69,7 @@ you decide which rep the token represents.
 curl -X POST https://app.useathos.ai/api/external/v1/session \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"externalUserId":"rep_8842"}'
+  -d '{"platformAgentId":"rep_8842"}'
 ```
 </Tab>
 <Tab value="Node">
@@ -75,7 +83,7 @@ app.post('/athos/token', requireAuth, async (req, res) => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      externalUserId: req.user.id,          // the platformAgentId you registered; never client-supplied
+      platformAgentId: req.user.id,         // the id you registered the rep under; never client-supplied
     }),
   });
   const body = await r.json();
@@ -95,7 +103,7 @@ def athos_token():
         "https://app.useathos.ai/api/external/v1/session",
         headers={"Authorization": f"Bearer {os.environ['ATHOS_API_KEY']}"},
         json={
-            "externalUserId": current_user.id,        # the platformAgentId you registered; never client-supplied
+            "platformAgentId": current_user.id,       # the id you registered the rep under; never client-supplied
         },
         timeout=10,
     )
@@ -105,8 +113,9 @@ def athos_token():
 </Tabs>
 
 <Callout type="warn">
-  Always derive `externalUserId` from your **authenticated session**, not from the request body. A
-  token scopes a live call to that rep; letting the client choose it lets one rep impersonate another.
+  Always derive the id you mint with from your **authenticated session**, not from the request body.
+  A token scopes a live call to that rep; letting the client choose it lets one rep impersonate
+  another.
 </Callout>
 
 ## Rules of the road
@@ -121,7 +130,7 @@ def athos_token():
 
 | Status | `code` | Cause |
 | --- | --- | --- |
-| 400 | `INVALID_REQUEST` | Missing/blank `externalUserId`. |
+| 400 | `INVALID_REQUEST` | Neither or both of `agentId` / `platformAgentId`, or a blank one. |
 | 401 | `INVALID_API_KEY` | Bad or missing API key. |
 | 401 | `API_KEY_REVOKED` | The key was revoked — rotate. |
 | 403 | `TENANT_INACTIVE` | Your tenant is inactive. |

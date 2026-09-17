@@ -73,7 +73,7 @@ send the same `platformAgencyId` again, or pass the agency's `id` as `agencyId`.
 
 <Callout type="info">
   **The ids you get back are the ones everything else uses.** A session token is minted for a
-  registered agent by `platformAgentId` or `agent.id` (see
+  registered agent with `{ platformAgentId }` or `{ agentId }` (see
   [Minting session tokens](/backend/minting-tokens)), and every call and every `call.scored`
   delivery carries `agentId` / `agencyId` beside your own `externalUserId` / `externalAgencyId` —
   so you can store both, or store neither and keep sending yours.
@@ -215,11 +215,13 @@ one. It is stored and echoed back on the agency record.
 ## Two rules for your own ids
 
 `platformAgentId` and `platformAgencyId` are **your** ids, stored and echoed back so you never have
-to map ours to yours. Two rules apply to both, and each shows up as a `400 INVALID_REQUEST` if
-broken:
+to map ours to yours. Two rules apply to both:
 
-- They may not begin with `athos_agent_` or `athos_agency_`. Those prefixes are Athos ids, and
-  accepting one as yours would let a later session request resolve the wrong rep.
-- Each must be **unique within your account** — one `platformAgentId` per rep, one
-  `platformAgencyId` per agency — because they are what Athos resolves a record by when you send
-  them: the mint resolves `platformAgentId`, and the `GET /v1/calls` filters resolve both.
+- They may not begin with `athos_agent_` or `athos_agency_` — those prefixes are Athos ids, and
+  accepting one as yours would let a later session request resolve the wrong rep. That is a
+  `400 INVALID_REQUEST` everywhere.
+- Each is **unique within your account**, because Athos resolves a record by it when you send it
+  (the mint resolves `platformAgentId`; the `GET /v1/calls` filters resolve both). A
+  `platformAgentId` already registered answers `409 AGENT_ALREADY_EXISTS` with the existing ids. A
+  `platformAgencyId` you already registered **joins** that agency at registration (`201`); only
+  `PATCH /v1/agencies/{agencyId}` with another agency's value is `400 INVALID_REQUEST`.

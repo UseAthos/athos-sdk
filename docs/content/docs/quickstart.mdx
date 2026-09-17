@@ -68,14 +68,14 @@ Details on [Managing agencies and agents](/backend/managing-agencies-and-agents)
 ### Mint a session token (backend)
 
 Your backend exchanges its API key for a short-lived, single-use **session token** scoped to one
-registered rep — minted by the id you registered them under. Expose this as your own endpoint (e.g.
-`POST /athos/token`) that your frontend can call.
+registered rep — minted by the rep's `platformAgentId` or Athos `agentId`. Expose this as your own
+endpoint (e.g. `POST /athos/token`) that your frontend can call.
 
 ```bash
 curl -X POST https://app.useathos.ai/api/external/v1/session \
   -H "Authorization: Bearer $ATHOS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"externalUserId":"rep_8842"}'
+  -d '{"platformAgentId":"rep_8842"}'
 # → { "token": "eyJhbGci…", "expiresAt": "2026-06-05T18:05:00.000Z" }
 ```
 

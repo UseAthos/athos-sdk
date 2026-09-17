@@ -21,8 +21,8 @@ Within your tenant, Athos keeps a **roster**:
 
 See [Managing agencies and agents](/backend/managing-agencies-and-agents). Nobody from your world
 ever logs into Athos — the roster is maintained entirely through this API. A rep must be registered
-before their first roleplay: a session token is only minted for a registered agent, by the id you
-registered them under.
+before their first roleplay: a session token is only minted for a registered agent, by its
+`platformAgentId` or its Athos `agentId`.
 
 Every call and every `call.scored` delivery carries two id families for the same rep and agency:
 
@@ -30,8 +30,8 @@ Every call and every `call.scored` delivery carries two id families for the same
 - **`externalUserId` / `externalAgencyId`** — your own ids. `externalUserId` on every call and every
   delivery is the `platformAgentId` you registered that rep under, or `null` if you didn't register
   one — join on `agentId` in that case. `externalAgencyId` is the agency's `platformAgencyId`, or
-  `null`. On the mint request, `externalUserId` is the id you mint with — your `platformAgentId` or
-  the Athos `agentId`.
+  `null`. Both are read-side names only: a request names a rep by `agentId` or `platformAgentId`,
+  the same fields the agent object carries.
 
 <Callout type="warn">
   `externalAgencyId` is a **filter only** — never an authorization boundary. Anyone with your API
@@ -48,7 +48,7 @@ Every call and every `call.scored` delivery carries two id families for the same
 | **`callId`** | `athos_call_GZ1DjOkZv_…` | The stable, public id for a call. Use it for `GET /v1/calls/:id`, in webhooks, and in the SDK `ended` event. **This is the only call id that crosses the API boundary.** |
 | **`requestId`** | `req_2f8c1e94-…` | Returned on every API response as the `X-Athos-Request-Id` header. Quote it in support tickets. |
 
-You'll never see an internal database id. All three are opaque, semver-stable public contracts: a
+You'll never see an internal database id. All four are opaque, semver-stable public contracts: a
 resource returns its own id as `id`, and refers to another resource as `<resource>Id` (an agent's
 `agencyId`, for example).
 
