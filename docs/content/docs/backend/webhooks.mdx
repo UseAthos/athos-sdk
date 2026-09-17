@@ -43,8 +43,8 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
   "source": "roleplay",
   "agentId": "athos_agent_bR4kQ2wZ9Lp0nH3xVq1Yt",
   "agencyId": "athos_agency_V1StGXR8Z5jdHi6B-myT",
-  "externalUserId": "rep_8842",
-  "externalAgencyId": "acme-7731",
+  "platformAgentId": "rep_8842",
+  "platformAgencyId": "acme-7731",
   "occurredAt": "2026-06-05T18:09:14.000Z",
   "requestId": "req_b1f0…"
 }
@@ -55,14 +55,14 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
 | `event` | Always `"call.scored"` in v1. |
 | `success` | `true` when the call scored. `false` when it didn't — see [When `success` is `false`](#when-success-is-false). |
 | `callId` | Public `athos_call_…` id. Look the call up with this. |
-| `source` | `"roleplay"` for a practice call run through the SDK; `"ingestion"` for a real call ingested from the agency's dialer (see [Real-call analysis](/backend/real-call-analysis)). |
+| `source` | `"roleplay"` for a practice call run through the SDK; `"real_call"` for a real call ingested from the agency's dialer (see [Real-call analysis](/backend/real-call-analysis)). |
 | `agentId` / `agencyId` | The Athos ids of the rep who took the call and their agency — the ids registration returned. Always present. |
-| `externalUserId` / `externalAgencyId` | Your own ids for the same rep and agency. `externalUserId` on every call and every delivery is the `platformAgentId` you registered that rep under, or `null` if you didn't register one — join on `agentId` in that case. `externalAgencyId` is the agency's `platformAgencyId`, or `null`. |
+| `platformAgentId` / `platformAgencyId` | Your own ids for the same rep and agency, under the names you registered them. `platformAgentId` on every call and every delivery is the id you registered that rep under, or `null` if you didn't register one — join on `agentId` in that case. `platformAgencyId` is the agency's, or `null`. |
 | `occurredAt` | ISO 8601 timestamp of the event. |
 | `requestId` | A delivery support id — quote it to Athos if a delivery looks wrong. |
 
 <Callout type="info">
-  A rep you registered with only an email or an NPN has no id of yours on file, so `externalUserId`
+  A rep you registered with only an email or an NPN has no id of yours on file, so `platformAgentId`
   is `null` for their calls — join on `agentId`. Registering your own rep id is still the
   recommended path: it keeps the join to your own database direct.
 </Callout>

@@ -7,7 +7,7 @@ Athos scores two kinds of call: **practice calls** your reps run through the SDK
 an agency's reps make on their dialer. Real calls are ingested from the dialer, scored by the same
 engine, and surface in this API exactly like practice calls — same `call.scored` webhook, same
 `GET /v1/calls` and `GET /v1/calls/:callId`, same ids. The only visible difference is
-`source: "ingestion"`.
+`source: "real_call"` — and on the list you ask for them with `?source=real_call`.
 
 ## Switching it on
 
@@ -20,7 +20,7 @@ It is arranged **per agency**. The connection, the URL and the secret are all pe
 bringing a second agency onto real calls is a second arrangement, not a flag on the first one. Plan
 for that fan-out when you onboard agencies.
 
-Once an agency is live, its reps' real calls appear in `GET /v1/calls` with `source: "ingestion"`
+Once an agency is live, its reps' real calls appear in `GET /v1/calls?source=real_call`
 and fire `call.scored` with the same signed body, once per call (`success: false` when the call was
 kept but could not be scored — see [Webhooks](/backend/webhooks)). An agency that has not been
 switched on ingests nothing, is scored for nothing and is billed for nothing.
@@ -47,8 +47,8 @@ file and the two disagree, the licence number wins.
 
 ## What comes back
 
-- `source` is `"ingestion"`, and `drillKey` is `null` — a real call is not a drill.
-- `agentId` / `agencyId` and `externalUserId` / `externalAgencyId` carry the same meaning as on a
+- `source` is `"real_call"`, and `drillKey` is `null` — a real call is not a drill.
+- `agentId` / `agencyId` and `platformAgentId` / `platformAgencyId` carry the same meaning as on a
   practice call, so one join works across both sources.
 - The `transcript` turns carry `startTime` / `endTime` in seconds from the start of the call.
 - `score.complianceScorecard` is present when the call was assessed for compliance.

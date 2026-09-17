@@ -76,8 +76,9 @@ send the same `platformAgencyId` again, or pass the agency's `id` as `agencyId`.
   **The ids you get back are the ones everything else uses.** A session token is minted for a
   registered agent with `{ platformAgentId }` or `{ agentId }` (see
   [Minting session tokens](/backend/minting-tokens)), and every call and every `call.scored`
-  delivery carries `agentId` / `agencyId` beside your own `externalUserId` / `externalAgencyId` —
-  so you can store both, or store neither and keep sending yours.
+  delivery carries `agentId` / `agencyId` beside your own `platformAgentId` / `platformAgencyId`,
+  under the same names you registered them — so you can store both, or store neither and keep
+  sending yours.
 </Callout>
 
 **Already registered?** Registering a rep who already exists under any handle you sent is a

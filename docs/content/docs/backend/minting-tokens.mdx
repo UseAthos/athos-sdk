@@ -47,7 +47,7 @@ Sending neither, or both, is `400 INVALID_REQUEST`. `null` is treated as omitted
 
 The agency id you used to send on every mint is now registered **once** on the agency
 (`POST /v1/agents` or `PATCH /v1/agencies/{agencyId}` with `platformAgencyId`) and comes back as
-`externalAgencyId` on every call and every delivery — the field did not go away, it moved.
+`platformAgencyId` on every call and every delivery — the field did not go away, it moved.
 
 **Response** `200 OK`
 

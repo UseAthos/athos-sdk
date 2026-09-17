@@ -157,22 +157,23 @@ paths:
       summary: List scored calls
       operationId: listCalls
       description: |
-        Called by **your backend**. Returns **scored** calls for your tenant, newest first
-        (a `roleplay` call by when it ended, an `ingestion` call by when it started),
-        cursor-paginated — practice (`roleplay`) and real (`ingestion`) calls interleaved in one
-        page, each row carrying its `source`. Scope it to one of your
-        agencies with `agencyId`, or to one rep with `agentId`; the two combine by AND.
+        Called by **your backend**. Returns **scored** calls of **one source** for your tenant,
+        newest first (a `roleplay` call by when it ended, a `real_call` by when it started),
+        cursor-paginated. `source` is required — `roleplay` (practice) or `real_call` (an agency's
+        real calls) — so a request is one pillar's history, never both mixed; every row still
+        carries its `source`. Scope it to one of your agencies with `agencyId`, or to one rep with
+        `agentId`; the two combine by AND.
 
         Two filter pairs, four distinct values, none an alias of another. `agencyId` / `agentId`
         are the **Athos** ids registration returned and are checked against your roster: an id
         that is not yours answers `404 AGENCY_NOT_FOUND` / `404 AGENT_NOT_FOUND`, never a
-        misleading empty page. `externalAgencyId` / `externalUserId` are **your own**
-        `platformAgencyId` / `platformAgentId`: plain filters that answer an empty page when
-        nothing matches. Naming the same rep or agency both ways in one request is
-        `400 INVALID_REQUEST`.
+        misleading empty page. `platformAgencyId` / `platformAgentId` are **your own** ids, under
+        the names you registered them: plain filters that answer an empty page when nothing
+        matches. Name each rep (and each agency) one way per request — both names for one is
+        `400 INVALID_REQUEST`; neither pair is required.
 
         `from` and `to` filter on the call's own time, not on when it was scored: when it
-        **ended** for a `roleplay` call, when it **started** for an `ingestion` call (a real call's
+        **ended** for a `roleplay` call, when it **started** for a `real_call` (a real call's
         `endedAt` is derived as start + duration). Scoring finishes minutes after a call ends, so a
         call can appear inside a window you have already read past: when you reconcile, re-scan an
         overlapping window and deduplicate on `id` rather than moving a watermark forward only. The `call.scored` webhook is the primary
@@ -185,24 +186,26 @@ paths:
         - name: from
           in: query
           required: true
-          description: Lower bound (inclusive) on when a `roleplay` call ended / an `ingestion` call started. ISO 8601.
+          description: Lower bound (inclusive) on when a `roleplay` call ended / a `real_call` started. ISO 8601.
           schema:
             type: string
             format: date-time
           example: "2026-06-01T00:00:00Z"
+        - name: source
+          in: query
+          required: true
+          description: >-
+            Which pillar to read: `roleplay` (practice calls) or `real_call` (an agency's real
+            calls). One per request. Omitting it is `400 INVALID_REQUEST`.
+          schema:
+            $ref: "#/components/schemas/CallSource"
         - name: to
           in: query
           required: false
-          description: Upper bound (inclusive) on when a `roleplay` call ended / an `ingestion` call started. ISO 8601.
+          description: Upper bound (inclusive) on when a `roleplay` call ended / a `real_call` started. ISO 8601.
           schema:
             type: string
             format: date-time
-        - name: source
-          in: query
-          required: false
-          description: Filter by call source (`roleplay` or `ingestion`). Omit it for both.
-          schema:
-            $ref: "#/components/schemas/CallSource"
         - name: agencyId
           in: query
           required: false
@@ -220,7 +223,7 @@ paths:
             the rep is not in, the page is empty.
           schema:
             type: string
-        - name: externalUserId
+        - name: platformAgentId
           in: query
           required: false
           description: >-
@@ -228,7 +231,7 @@ paths:
             value is an empty page, never an error. Not together with `agentId`.
           schema:
             type: string
-        - name: externalAgencyId
+        - name: platformAgencyId
           in: query
           required: false
           description: >-
@@ -754,9 +757,9 @@ components:
 
     CallSource:
       type: string
-      enum: [roleplay, ingestion]
+      enum: [roleplay, real_call]
       description: >
-        The call source. `roleplay` is a practice call run through the SDK; `ingestion` is a real
+        The call source. `roleplay` is a practice call run through the SDK; `real_call` is a real
         call ingested from an agency's dialer once Athos has switched that agency on.
 
     MintSessionRequest:
@@ -845,7 +848,7 @@ components:
     SlimCall:
       type: object
       description: The list-row shape (no `score`, no transcript).
-      required: [id, source, agencyId, agentId, externalUserId, externalAgencyId, durationSec]
+      required: [id, source, agencyId, agentId, platformAgentId, platformAgencyId, durationSec]
       properties:
         id:
           type: string
@@ -854,33 +857,34 @@ components:
           allOf:
             - $ref: "#/components/schemas/CallSource"
           description: >-
-            `roleplay` (a practice call) or `ingestion` (a real call). Both sources share this
-            shape and page together; branch on it only where the two genuinely differ
-            (`drillKey`, per-turn timings).
+            `roleplay` (a practice call) or `real_call` (a real call). Both sources share this
+            shape; a list page holds one of them (`?source=` is required). Branch on it only
+            where the two genuinely differ (`drillKey`, per-turn timings).
         agencyId:
           type: [string, "null"]
           description: The Athos id of the agency this call belongs to (`athos_agency_…`).
         agentId:
           type: [string, "null"]
           description: The Athos id of the rep who took the call (`athos_agent_…`).
-        externalUserId:
+        platformAgentId:
           type: [string, "null"]
           description: >-
-            The `platformAgentId` you registered that rep under, or `null` if you didn't register one —
-            join on `agentId` in that case.
-        externalAgencyId:
+            The id you registered that rep under, or `null` if you didn't register one — join on
+            `agentId` in that case. The same name on the roster, the mint, the filters and the
+            `call.scored` body.
+        platformAgencyId:
           type: [string, "null"]
-          description: The `platformAgencyId` you registered that agency under, or `null`.
+          description: The id you registered that agency under, or `null`.
         drillKey:
           type: [string, "null"]
-          description: The drill key the call practiced (e.g. `ma-full-sale`). `null` on an `ingestion` call.
+          description: The drill key the call practiced (e.g. `ma-full-sale`). `null` on a `real_call`.
         startedAt:
           type: [string, "null"]
           format: date-time
         endedAt:
           type: [string, "null"]
           format: date-time
-          description: On an `ingestion` call this is derived as `startedAt` + `durationSec`.
+          description: On a `real_call` this is derived as `startedAt` + `durationSec`.
         durationSec:
           type: integer
         scoredAt:
@@ -898,7 +902,7 @@ components:
           enum: [agent, beneficiary]
           description: >
             Who spoke. `agent` is the human rep being graded; `beneficiary` is the customer — the AI
-            persona on a `roleplay` call, the real person on the line on an `ingestion` call.
+            persona on a `roleplay` call, the real person on the line on a `real_call`.
         content:
           type: string
           description: What was said on this turn.
@@ -906,12 +910,12 @@ components:
           type: number
           description: >
             Optional. Start of the turn, in seconds from the beginning of the call. Present on
-            `ingestion` calls, not on roleplay calls.
+            `real_call` rows, not on roleplay calls.
         endTime:
           type: number
           description: >
             Optional. End of the turn, in seconds from the beginning of the call. Present on
-            `ingestion` calls, not on roleplay calls.
+            `real_call` rows, not on roleplay calls.
 
     CallDetail:
       description: >-
@@ -943,7 +947,7 @@ components:
                 either a recording URL stored with the call, or `null`, meaning there is no
                 recording you can play (calls practiced before recording was enabled, and the rare
                 case where a recording exists but could not be prepared for playback; retry the
-                request). On an `ingestion` call it is a short-lived signed link to Athos's own
+                request). On a `real_call` it is a short-lived signed link to Athos's own
                 archived copy of the dialer recording, or `null` when no archive exists — never the
                 dialer's URL.
             audioUrlExpiresAt:
@@ -975,7 +979,7 @@ components:
         overallScore:
           type: number
           description: >-
-            Overall call performance, 0–100 (higher is better). On an `ingestion` call the headline
+            Overall call performance, 0–100 (higher is better). On a `real_call` the headline
             is 60–100 by construction.
         summary:
           type: string
@@ -994,7 +998,7 @@ components:
           description: >
             The compliance scorecard for the call, section by section. **Optional** — on practice
             calls present only on Medicare Advantage drills, and only when the call ran long enough
-            to assess (roughly five minutes); on an `ingestion` call present when the call was
+            to assess (roughly five minutes); on a `real_call` present when the call was
             assessed for compliance. The key is absent, not null, when there is none, so check for its presence
             rather than assuming it. Section contents are graded content and may gain items over
             time; `totalScore` is the one fixed field.

@@ -22,7 +22,8 @@ Within your tenant, Athos keeps a **roster**:
 See [Managing agencies and agents](/backend/managing-agencies-and-agents). Nobody from your world
 ever logs into Athos — the roster is maintained entirely through this API. The roster exists so
 that every call can be attributed to one rep and one agency and **read back by agency and by rep**:
-`GET /v1/calls?agencyId=` and `GET /v1/calls?agentId=` return practice and real calls together. A
+`GET /v1/calls?agencyId=` and `GET /v1/calls?agentId=` return an agency's or a rep's practice calls
+or their real calls — one `source` per request. A
 rep must be registered before their first roleplay: a session token is only minted for a registered
 agent, by its `platformAgentId` or its Athos `agentId`.
 
@@ -32,12 +33,11 @@ agency — one of each, never one value under two names:
 - **Ours — `agentId` / `agencyId`** (and `callId`): the Athos ids registration returned. Always
   present. These are what you pass back: `?agentId=` / `?agencyId=` on `GET /v1/calls`,
   `agentId` on the mint, `{agencyId}` on `PATCH /v1/agencies`.
-- **Yours — `externalUserId` / `externalAgencyId`**: the `platformAgentId` / `platformAgencyId` you
-  registered, echoed back. `externalUserId` is `null` if you never registered one — join on
-  `agentId` in that case; `externalAgencyId` is `null` likewise. On the wire you send them as
-  `platformAgentId` / `platformAgencyId` (registration, the mint, `GET /v1/agents`) and read them as
-  `externalUserId` / `externalAgencyId` (calls, deliveries, and the two `GET /v1/calls` filters of
-  the same name). A field never holds the other family's value.
+- **Yours — `platformAgentId` / `platformAgencyId`**: the ids you registered, echoed back under the
+  same names everywhere — registration, the mint, `GET /v1/agents`, the two `GET /v1/calls` filters,
+  every call object and every delivery. `platformAgentId` is `null` if you never registered one —
+  join on `agentId` in that case; `platformAgencyId` is `null` likewise. A field never holds the
+  other family's value, and no value ever travels under two names.
 
 <Callout type="warn">
   Scoping by `agencyId` or `agentId` is checked against **your** roster (someone else's id is a
@@ -89,10 +89,11 @@ history and reconciliation read.
 Every call carries a **`source`**:
 
 - **`roleplay`** — a practice call your rep ran through the SDK.
-- **`ingestion`** — a real call one of your agencies' reps made on their dialer, ingested and scored
+- **`real_call`** — a real call one of your agencies' reps made on their dialer, ingested and scored
   by Athos once that agency has been switched on. See
   [Real-call analysis](/backend/real-call-analysis).
 
 Both kinds fire the same `call.scored` webhook, carry the same ids, and are read from the same
-endpoints — one `GET /v1/calls?agencyId=` page holds an agency's practice and real calls together,
-newest first. A real call has no `drillKey`.
+endpoints in the same shape — `GET /v1/calls` takes a required `source`, so one request is an
+agency's practice history and another is its real-call history, each newest first. A real call has
+no `drillKey`.

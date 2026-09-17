@@ -60,11 +60,11 @@ codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent other
   `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `SERVICE_UNAVAILABLE` (no persona is available for the
   drill right now). These surface through the SDK's [`error` event](/sdk/errors). Most of them
   **spend the session token** — see [below](#a-failed-redemption-usually-spends-the-token).
-- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only — a bad cursor, or
-  the same rep / agency named both ways), `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`,
-  `IP_NOT_ALLOWED`, `AGENCY_NOT_FOUND` / `AGENT_NOT_FOUND` (list only — an `agencyId` / `agentId`
-  that is not yours), and `CALL_NOT_FOUND` (detail only). The `externalAgencyId` /
-  `externalUserId` filters never error: an unknown value is an empty page.
+- **`GET /calls` and `GET /calls/:id`** (reads): `INVALID_REQUEST` (list only — a missing or unknown
+  `source`, a bad cursor, or the same rep / agency named both ways), `INVALID_API_KEY`,
+  `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, `AGENCY_NOT_FOUND` / `AGENT_NOT_FOUND`
+  (list only — an `agencyId` / `agentId` that is not yours), and `CALL_NOT_FOUND` (detail only). The
+  `platformAgencyId` / `platformAgentId` filters never error: an unknown value is an empty page.
 
 ## A failed redemption usually spends the token
 
