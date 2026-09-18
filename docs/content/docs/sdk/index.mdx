@@ -1,5 +1,5 @@
 ---
-title: SDK overview
+title: Browser SDK
 description: Run a live Athos roleplay call in your frontend with @useathos/sdk.
 ---
 
@@ -16,6 +16,32 @@ session with lifecycle events. Your code only ever works with Athos domain conce
 ```bash
 npm install @useathos/sdk
 ```
+
+## Requirements
+
+- **Browsers:** desktop Chromium-based browsers (Chrome, Edge, Brave, Opera, …) and desktop
+  Firefox. Safari and all mobile browsers are rejected by `create()` with `BROWSER_NOT_SUPPORTED` —
+  see [Browser support](/sdk/browser-support).
+- **HTTPS:** the page must be served over HTTPS (or `localhost`). On a plain `http://` origin the
+  browser withholds the microphone, which the SDK reports as `NO_MIC_AVAILABLE`.
+- **Framework:** none required — no React/Vue binding, no global state. Call `create()` from a
+  click handler or an effect after mount, never during render or server-side rendering (it throws
+  there). Create one session per call.
+- **Size:** about 5 kB gzipped, plus its voice-transport dependency (about 250 kB gzipped),
+  installed automatically. Both are ESM + CJS.
+- **Iframes:** if the call runs inside an `<iframe>`, the frame needs `allow="microphone"` or the
+  browser denies the microphone (`MIC_PERMISSION_DENIED`).
+- **Content Security Policy:** the SDK calls `https://app.useathos.ai` (to redeem the token) and
+  then opens a WebSocket + WebRTC connection to the voice host returned by that call — currently
+  under `*.livekit.cloud`; do not hard-code a single hostname. If you set a CSP, allow:
+
+  ```text
+  connect-src https://app.useathos.ai https://*.livekit.cloud wss://*.livekit.cloud
+  ```
+
+  That covers the token redeem and the signalling (both `https://` and `wss://` to the voice host).
+  The audio itself travels over WebRTC, which CSP does not govern, and is played through an
+  `<audio>` element the SDK creates — no `media-src` entry is needed.
 
 ## The five-line integration
 

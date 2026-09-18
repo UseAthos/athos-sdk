@@ -7,17 +7,20 @@ The External API is seven endpoints under a single base URL.
 
 **Base URL:** `https://app.useathos.ai/api/external/v1`
 
+Paths in these docs are written `/v1/…`: `POST /v1/session` means
+`POST https://app.useathos.ai/api/external/v1/session`. Path parameters are written `:name`.
+
 ## Endpoints
 
 | Method & path | Auth | CORS | Purpose |
 | --- | --- | --- | --- |
-| `POST /agents` | API key | ❌ | [Register an agent](/backend/managing-agencies-and-agents), creating their agency if needed. |
-| `GET /agents` | API key | ❌ | [Look agents up](/backend/managing-agencies-and-agents#look-up--get-v1agents) by any handle, or page the roster. |
-| `PATCH /agencies/{agencyId}` | API key | ❌ | [Rename an agency](/backend/managing-agencies-and-agents#update-an-agency--patch-v1agenciesagencyid) or set your own id on it. |
-| `POST /session` | API key | ❌ | [Mint a session token](/backend/minting-tokens) for the SDK. |
-| `POST /roleplay/session` | Session token | ✅ | Redeem a token and start a call. **Called by the SDK**, not you. |
-| `GET /calls` | API key | ❌ | [List scored calls](/backend/reading-calls) (cursor-paginated). |
-| `GET /calls/{callId}` | API key | ❌ | [Get full call detail](/backend/reading-calls) (transcript + score). |
+| `POST /v1/agents` | API key | ❌ | [Register an agent](/backend/managing-agencies-and-agents), creating their agency if needed. |
+| `GET /v1/agents` | API key | ❌ | [Look agents up](/backend/managing-agencies-and-agents#look-up--get-v1agents) by any handle, or page the roster. |
+| `PATCH /v1/agencies/:agencyId` | API key | ❌ | [Rename an agency](/backend/managing-agencies-and-agents#update-an-agency--patch-v1agenciesagencyid) or set your own id on it. |
+| `POST /v1/session` | API key | ❌ | [Mint a session token](/backend/minting-tokens) for the SDK. |
+| `POST /v1/roleplay/session` | Session token | ✅ | Redeem a token and start a call. **Called by the SDK**, not you. |
+| `GET /v1/calls` | API key | ❌ | [List scored calls](/backend/reading-calls) (cursor-paginated). |
+| `GET /v1/calls/:callId` | API key | ❌ | [Get full call detail](/backend/reading-calls) (transcript + score). |
 
 The six API-key endpoints are **server-to-server** and reject cross-origin requests. Only the SDK's
 redeem endpoint accepts browser (CORS) requests. See [Authentication](/authentication).
@@ -30,10 +33,12 @@ redeem endpoint accepts browser (CORS) requests. See [Authentication](/authentic
   [error codes](/reference/errors).
 - **Request id:** every response from a v1 endpoint carries `X-Athos-Request-Id`. Quote it in
   support tickets.
-- **Rate limits:** none are enforced in v1. Poll `GET /calls` on a schedule rather than in a tight
-  loop; the `call.scored` webhook is the notification.
+- **Rate limits:** none are enforced in v1. Poll `GET /v1/calls` on a schedule rather than in a
+  tight loop; the `call.scored` webhook is the notification. If limits are introduced they will
+  answer `429` with a `Retry-After` header — handle that status now and nothing changes later.
 - **Versioning:** the path is pinned to `/v1`. Breaking changes ship under a new version; `/v1` stays
-  available for at least six months past any successor.
+  available for at least six months past any successor. `@useathos/sdk` follows semver: a breaking
+  change to its public surface is a major release.
 
 ## OpenAPI spec
 

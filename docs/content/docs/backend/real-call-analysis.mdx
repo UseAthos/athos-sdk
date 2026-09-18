@@ -12,15 +12,17 @@ engine, and surface in this API exactly like practice calls — same `call.score
 ## Switching it on
 
 There is nothing for your code to call. Real-call analysis is **arranged with Athos, per agency**:
-tell your Athos contact which agency and which dialer, and an Athos operator sets up the dialer
-connection for that agency and hands over the webhook URL and secret the dialer needs. Bringing a
-second agency onto real calls is a second arrangement.
+tell your Athos contact which agency and which dialer, and an Athos operator sets up the dialer's
+feed into Athos for that agency (the dialer gets its own connection details — this is unrelated to
+your `call.scored` endpoint, which needs no change). Bringing a second agency onto real calls is a
+second arrangement.
 
 Once an agency is live, its reps' real calls appear in `GET /v1/calls?source=real_call` and fire
 `call.scored` with the same signed body, once per call (`success: false` when the call was kept but
-could not be scored — see [Webhooks](/backend/webhooks)). Their minutes count toward the same monthly
-allowance as practice calls (the one `TENANT_QUOTA_EXCEEDED` reports). An agency that has not been
-switched on ingests nothing, is scored for nothing and is billed for nothing.
+could not be scored — see [Webhooks](/backend/webhooks#when-success-is-false)). Their minutes count
+toward the same monthly allowance as practice calls (the one `TENANT_QUOTA_EXCEEDED` reports). An
+agency that has not been switched on ingests nothing, is scored for nothing and is billed for
+nothing.
 
 ## Register your reps first
 
@@ -61,9 +63,14 @@ Two more rules of attribution:
   (with `audioUrlExpiresAt`), or `null` when no archive exists — never the dialer's own URL.
   **Archived recordings are kept for 30 days.** After that the call still reads normally, with
   `audioUrl: null`; fetch and store the recording within that window if you need it longer.
-- A real call can be **re-dispositioned** by the dialer after it was scored. That can change
-  `score` (including `complianceScorecard`) and `scoredAt` **without a new `call.scored`
-  delivery** — re-read real calls on a schedule if you cache them.
+- **Not every real call produces a delivery.** A call dropped before Athos persisted it — too short
+  to assess, no usable audio, a transcript that could not be produced, or a rep who is not
+  registered — fires nothing at all. A call that was persisted but could not be scored arrives as
+  `success: false`.
+- A real call can be **re-dispositioned** — the dialer changes the call's recorded outcome (a sale,
+  a callback, …) after the fact. That can change `score` (including `complianceScorecard`) and
+  `scoredAt` **without a new `call.scored` delivery** — re-read real calls on a schedule if you
+  cache them.
 
 Everything else — the ids, verifying the webhook signature, paging, reading the `score` object — is
 identical to practice calls. See [Webhooks](/backend/webhooks) and

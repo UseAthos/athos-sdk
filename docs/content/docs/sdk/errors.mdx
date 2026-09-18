@@ -50,8 +50,8 @@ These originate in the browser at runtime:
 <Callout type="info">
   **`connect()` asks for the microphone before it redeems the token**, so a denied or missing
   microphone normally leaves the token **unspent**. Recover by fixing the device and retrying the
-  same token on a *new* session; if that returns `TOKEN_ALREADY_USED`, the failure came from later
-  in the call setup — mint a fresh token. See
+  same token on a **new session** (always create a new session per attempt); if that returns
+  `TOKEN_ALREADY_USED`, the failure came from later in the call setup — mint a fresh token. See
   [Microphone & audio](/sdk/microphone-and-audio#permission-is-requested-before-the-call-starts).
 </Callout>
 
@@ -76,11 +76,13 @@ channel:
   [error reference](/reference/errors#a-failed-redemption-usually-spends-the-token).
 </Callout>
 
-`AGENT_NOT_FOUND`, `TENANT_INACTIVE` and `TENANT_QUOTA_EXCEEDED` never reach the browser. All three
-come back on your backend's server-to-server calls — `AGENT_NOT_FOUND` (`404`) and
-`TENANT_QUOTA_EXCEEDED` (`403`) when you [mint a token](/backend/minting-tokens) for a rep who is not
-registered or once the allowance is spent, `TENANT_INACTIVE` (`403`) on any API-key call — so handle
-them there, not on the SDK's `error` channel.
+The other nine codes in `ATHOS_ERROR_CODES` — `INVALID_API_KEY`, `API_KEY_REVOKED`,
+`IP_NOT_ALLOWED`, `TENANT_INACTIVE`, `TENANT_QUOTA_EXCEEDED`, `CALL_NOT_FOUND`, `AGENT_NOT_FOUND`,
+`AGENT_ALREADY_EXISTS` and `AGENCY_NOT_FOUND` — never reach the browser. They come back on your
+backend's server-to-server calls (for example `AGENT_NOT_FOUND` and `TENANT_QUOTA_EXCEEDED` when you
+[mint a token](/backend/minting-tokens) for an unregistered rep or once the allowance is spent), so
+handle them there, not on the SDK's `error` channel. The full table is the
+[error reference](/reference/errors).
 
 <Callout type="info">
   The token-lifecycle codes (`INVALID_TOKEN`, `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`) almost always

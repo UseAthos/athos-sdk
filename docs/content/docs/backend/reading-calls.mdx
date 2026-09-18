@@ -17,15 +17,15 @@ Returns **scored** calls of **one source** for your tenant, newest first (`rolep
 
 | Param | Required | Notes |
 | --- | --- | --- |
-| `from` | ✅ | Lower bound (ISO 8601) on when a `roleplay` call **ended** / a `real_call` **started**. |
+| `from` | ✅ | Lower bound (ISO 8601 UTC, inclusive) on when a `roleplay` call **ended** / a `real_call` **started**. |
 | `source` | ✅ | `roleplay` (practice calls) or `real_call` (an agency's [real calls](/backend/real-call-analysis)). One per request; omitting it is `400 INVALID_REQUEST`. |
-| `to` | | Upper bound (ISO 8601), same axis as `from`. |
+| `to` | | Upper bound (ISO 8601, inclusive), same axis as `from`. |
 | `agencyId` | | **All calls for one agency**, by its Athos id (`athos_agency_…`). Checked against your roster: an unknown or foreign id is `404 AGENCY_NOT_FOUND`. |
 | `agentId` | | **All calls for one rep**, by their Athos id (`athos_agent_…`). Checked against your roster: an unknown or foreign id is `404 AGENT_NOT_FOUND`. With an `agencyId` the rep is not in, the page is empty. |
 | `platformAgentId` | | One rep, by the `platformAgentId` you registered them under. An unknown value is an empty page. Not together with `agentId`. |
 | `platformAgencyId` | | One agency, by the `platformAgencyId` you registered it under. An unknown value is an empty page. Not together with `agencyId`. |
-| `limit` | | Page size, default `50`, max `100`. |
-| `cursor` | | Opaque token from a previous `nextCursor`. |
+| `limit` | | Page size, 1–100, default `50`. Out of range or not an integer is `400 INVALID_REQUEST` — it is not clamped. |
+| `cursor` | | Opaque token from a previous `nextCursor`. A cursor you did not get from this endpoint is `400 INVALID_REQUEST`. |
 
 <Callout type="info">
   **Two filter pairs.** `agencyId` / `agentId` are Athos ids and are **checked**: an agency or rep
@@ -62,13 +62,15 @@ registered one — join on `agentId` / `agencyId` then (see [Core concepts](/con
 `drillKey` is `null` on a `real_call`. Page with `cursor` and the same `source`, as described in
 [Paging](/backend/managing-agencies-and-agents#paging-once).
 
-<Callout type="warn">
-  **`from` and `to` filter on the call's own time, not on when it was scored** — when it *ended*
-  for a `roleplay` call, when it *started* for a `real_call` — and results are ordered on that same
-  axis. Scoring finishes some minutes after a call ends, so a call can become readable inside a
-  window you have already read past. When you reconcile, re-scan a window that overlaps the last one
-  by an hour plus the longest real call you expect, and deduplicate on `id`.
-</Callout>
+### Reconciling by polling
+
+**`from` and `to` filter on the call's own time, not on when it was scored** — when it *ended* for
+a `roleplay` call, when it *started* for a `real_call` — and results are ordered on that same axis.
+Scoring finishes minutes after a call ends, so a call can become readable inside a window you have
+already read past. When you reconcile (the backstop for a missed
+[webhook delivery](/backend/webhooks#responding-retries-and-idempotency)), re-scan a window that
+**overlaps** the last one by an hour plus the longest real call you expect, and deduplicate on
+`id`. A forward-only watermark misses calls that were scored after you read past them.
 
 <Tabs items={['curl', 'Node']}>
 <Tab value="curl">
@@ -201,11 +203,13 @@ call, or when the analysis step did not complete, the call still scores but has 
 
 `audioUrl` is either a **short-lived signed link** to Athos's own archived recording — with
 `audioUrlExpiresAt` set to the moment it stops working, about an hour after the request — or
-`null`, in which case `audioUrlExpiresAt` is `null` too and there is nothing to play (a practice
-call recorded before archiving was enabled, a real call whose recording was not archived, a real
-call older than **30 days** — its archived recording has been deleted — or the rare case where a
-recording exists but could not be prepared, which a later request usually resolves).
+`null`, in which case `audioUrlExpiresAt` is `null` too and there is nothing to play (a real call
+whose recording was not archived, a real call older than **30 days** — its archived recording has
+been deleted — or the rare case where a recording exists but could not be prepared, which a later
+request usually resolves).
 
 Use the link directly in an `<audio>` element or a download link. **Do not store it**, email it or
 embed it anywhere long-lived: when you need it again, fetch the call again and you get a fresh one.
-On a `real_call` it is never the dialer's own recording URL.
+The link is signed for `GET` only — a `HEAD` request answers `403`; to inspect the file without
+downloading it, send a ranged `GET` (`Range: bytes=0-0`). On a `real_call` it is never the dialer's
+own recording URL.

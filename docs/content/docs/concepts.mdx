@@ -1,6 +1,6 @@
 ---
 title: Core concepts
-description: Tenancy, identifiers, the call lifecycle, and call sources.
+description: Tenancy, identifiers, drills and personas, the call lifecycle, and call sources.
 ---
 
 A few ideas show up everywhere in this API. Read this once and the rest of the docs will read faster.
@@ -16,7 +16,8 @@ Within your tenant, Athos keeps a **roster**, maintained entirely through this A
 - An **agency** is one of your customers — a group of reps. It is created for you the first time
   you register a rep without naming one, and you can rename it.
 - An **agent** is a rep. Each agent belongs to exactly one agency and is registered once, with at
-  least one of their NPN, their email or your own id for them (`platformAgentId`).
+  least one **handle**: their NPN (National Producer Number), their email, or your own id for them
+  (`platformAgentId`).
 
 Every call is attributed to one agent and one agency, so you can read calls back **by agency and
 by rep**. A rep must be registered before their first roleplay: a session token is only minted for
@@ -36,7 +37,7 @@ and agency, under the same names everywhere:
 
 - **Ours — `agentId` / `agencyId`** (and `callId`): the Athos ids registration returned. Always
   present. Pass them back as `?agentId=` / `?agencyId=` on `GET /v1/calls`, `agentId` on the mint,
-  and `{agencyId}` on `PATCH /v1/agencies`.
+  and `:agencyId` on `PATCH /v1/agencies/:agencyId`.
 - **Yours — `platformAgentId` / `platformAgencyId`**: the ids you registered, echoed back on every
   object. `null` when you never registered one — join on `agentId` / `agencyId` in that case.
 
@@ -55,6 +56,16 @@ tenant.
 All four are opaque and stable. A resource returns its own id as `id` and refers to another
 resource as `<resource>Id` (an agent's `agencyId`, for example).
 
+Every timestamp in the API and the webhook is ISO 8601 in **UTC** (`2026-06-05T18:09:14.000Z`).
+`from` / `to` bounds are inclusive.
+
+## Drills and personas
+
+A **drill** is the scenario a rep practices — `ma-full-sale` (Medicare Advantage) or
+`fe-full-sale` (Final Expense). You pass its key as `drillKey` when you create a session. A
+**persona** is the AI customer the rep talks to on that call; Athos picks one for the drill, and
+you can nudge the choice with `difficulty` and `filters`. See [Drills](/reference/drills).
+
 ## The call lifecycle
 
 ```text
@@ -66,7 +77,7 @@ resource as `<resource>Id` (an agent's `agencyId`, for example).
                             │                                     │
                 ┌───────────┴───────────────┐                     ▼
                 ▼                           ▼       call.scored (success: false)
-   call.scored (success: true)     GET /v1/calls[/:id]
+   call.scored (success: true)     GET /v1/calls[/:callId]
 ```
 
 Every call that ends reaches one of two outcomes, and the `call.scored` webhook fires for both:

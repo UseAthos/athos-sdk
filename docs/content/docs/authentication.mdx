@@ -8,8 +8,8 @@ model.
 
 ## API keys (your backend)
 
-A reseller API key looks like `ath_live_…`. It authenticates every **server-to-server** call —
-minting sessions and reading calls — as a bearer token:
+Your API key looks like `ath_live_…`. It authenticates every **server-to-server** call —
+managing your roster, minting sessions and reading calls — as a bearer token:
 
 ```http
 Authorization: Bearer ath_live_xxxxxxxxxxxxxxxxxxxxxxxx
@@ -62,21 +62,10 @@ Because it's short-lived and single-use, there's no refresh flow and nothing to 
 
 ## CORS
 
-Only the SDK's redeem endpoint accepts cross-origin browser requests; everything else is
-server-to-server.
-
-| Endpoint | Caller | CORS |
-| --- | --- | --- |
-| `POST /v1/session` | your backend | ❌ rejected |
-| `POST /v1/roleplay/session` | the SDK (browser) | ✅ allowed |
-| `GET /v1/calls` | your backend | ❌ rejected |
-| `GET /v1/calls/:id` | your backend | ❌ rejected |
-| `POST /v1/agents` | your backend | ❌ rejected |
-| `GET /v1/agents` | your backend | ❌ rejected |
-| `PATCH /v1/agencies/:agencyId` | your backend | ❌ rejected |
-
-If you try to call a backend endpoint from a browser, it will fail CORS — that's intentional. Put
-those calls behind your own backend.
+Only the SDK's redeem endpoint (`POST /v1/roleplay/session`) accepts cross-origin browser requests.
+The six API-key endpoints reject them — if you call one from a browser it fails CORS, and that's
+intentional: put those calls behind your own backend. The per-endpoint table is on the
+[API reference](/reference/api#endpoints).
 
 ## The support flow
 

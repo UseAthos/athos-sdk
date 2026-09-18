@@ -6,7 +6,7 @@ info:
     name: Athos Support
     url: https://docs.useathos.ai
   description: |
-    The Athos **External API** lets a reseller integrate Athos AI roleplay and scored-call data into
+    The Athos **External API** lets a partner integrate Athos AI roleplay and scored-call data into
     their own product. It has seven endpoints across two auth schemes:
 
     - **API key** (`ath_live_…`) — server-to-server, used by your backend to manage your roster of
@@ -43,7 +43,7 @@ paths:
         Called by **your backend** (server-to-server). Exchanges your API key for a short-lived,
         single-use **session token** (a JWT, ~5-minute TTL) scoped to one of your **registered**
         agents. Hand the returned `token` to the browser, which passes it to
-        `AthosRoleplay.create({ token })`.
+        `AthosRoleplay.create({ token, drillKey })`.
 
         Send **exactly one** of the agent's two ids, under the same names the agent object and
         `GET /agents` use: `platformAgentId` (the id you registered the rep under) or `agentId` (the
@@ -562,7 +562,7 @@ webhooks:
             Reject a `t` more than 5 minutes from now.
           schema:
             type: string
-          example: "t=1749139254,v1=3a8f1c…e92"
+          example: "t=1780682954,v1=3a8f1c…e92"
         - name: X-Athos-Webhook-Id
           in: header
           required: true
@@ -617,7 +617,7 @@ components:
       type: http
       scheme: bearer
       description: >
-        Your reseller API key as a bearer token: `Authorization: Bearer ath_live_…`. Issued by Athos
+        Your API key as a bearer token: `Authorization: Bearer ath_live_…`. Issued by Athos
         (shown once). Server-to-server only — never expose it to a browser.
     SessionToken:
       type: http
@@ -1003,7 +1003,10 @@ components:
 
     SlimCall:
       type: object
-      description: The list-row shape (no `score`, no transcript). Every key is always present; nullable ones are `null`.
+      description: >-
+        The list-row shape (no `score`, no transcript). Every key is always present; the
+        `platform*` ids and `drillKey` are `null` when there is no value. All timestamps are ISO
+        8601 in UTC.
       required:
         [
           id,
@@ -1029,11 +1032,11 @@ components:
             `roleplay` (a practice call) or `real_call` (a real call). Both sources share this
             shape; a list page holds one of them.
         agencyId:
-          type: [string, "null"]
-          description: The Athos id of the agency this call belongs to (`athos_agency_…`).
+          type: string
+          description: The Athos id of the agency this call belongs to (`athos_agency_…`). Always present.
         agentId:
-          type: [string, "null"]
-          description: The Athos id of the rep who took the call (`athos_agent_…`).
+          type: string
+          description: The Athos id of the rep who took the call (`athos_agent_…`). Always present.
         platformAgentId:
           type: [string, "null"]
           description: >-
@@ -1046,11 +1049,11 @@ components:
           type: [string, "null"]
           description: The drill key the call practiced (e.g. `ma-full-sale`). `null` on a `real_call`.
         startedAt:
-          type: [string, "null"]
+          type: string
           format: date-time
           description: When the call started. The `from` / `to` window and ordering axis for a `real_call`.
         endedAt:
-          type: [string, "null"]
+          type: string
           format: date-time
           description: >-
             When the call ended — the `from` / `to` window and ordering axis for a `roleplay` call.
@@ -1059,9 +1062,9 @@ components:
           type: integer
           description: Call length in whole seconds.
         scoredAt:
-          type: [string, "null"]
+          type: string
           format: date-time
-          description: When scoring finished.
+          description: When scoring finished. Always present — only scored calls are returned.
 
     TranscriptTurn:
       type: object
