@@ -118,8 +118,8 @@ def athos_token():
 - **Mint at the moment of use.** The token lives ~5 minutes and is single-use. Mint it when the rep
   clicks "start practice", hand it straight to `AthosRoleplay.create({ token })`, and connect.
 - **One token per call.** Reusing a token returns `TOKEN_ALREADY_USED` at the SDK.
-- **Server-to-server only.** This endpoint rejects cross-origin (CORS) requests — it must be called
-  from your backend.
+- **Server-to-server only.** This endpoint is not CORS-enabled (no `Access-Control-Allow-Origin`),
+  so a browser blocks the response — it must be called from your backend.
 
 ## Errors
 
@@ -129,6 +129,7 @@ def athos_token():
 | 401 | `INVALID_API_KEY` | Bad or missing API key. |
 | 401 | `API_KEY_REVOKED` | The key was revoked — rotate. |
 | 403 | `TENANT_INACTIVE` | Your tenant is inactive. |
+| 403 | `IP_NOT_ALLOWED` | Only if an IP allowlist is configured for your tenant: the request came from an address outside it. |
 | 403 | `TENANT_QUOTA_EXCEEDED` | Your tenant's monthly usage allowance is spent. |
 | 404 | `AGENT_NOT_FOUND` | No agent of yours is registered under that id. Register the rep first, or resolve an NPN or email to an id with `GET /v1/agents`. |
 

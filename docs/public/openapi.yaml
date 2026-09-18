@@ -143,7 +143,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/RedeemSessionResponse"
         "400":
-          $ref: "#/components/responses/InvalidRequest"
+          description: >-
+            A blank `drillKey` (`INVALID_REQUEST`, token unspent) or one that names no known drill
+            (`DRILL_NOT_FOUND`, token spent — mint a new one).
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                blankDrillKey:
+                  value:
+                    error:
+                      code: "INVALID_REQUEST"
+                      message: "drillKey is required"
+                      requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
+                unknownDrill:
+                  value:
+                    error:
+                      code: "DRILL_NOT_FOUND"
+                      message: "Unknown drillKey"
+                      requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -239,7 +261,9 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Page size. Defaults to 50, capped at 100.
+          description: >-
+            Page size, 1–100 (default 50). A value out of range or not an integer is
+            `400 INVALID_REQUEST` — it is not clamped.
           schema:
             type: integer
             minimum: 1
@@ -426,7 +450,9 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Page size. Defaults to 50, capped at 100.
+          description: >-
+            Page size, 1–100 (default 50). A value out of range or not an integer is
+            `400 INVALID_REQUEST` — it is not clamped.
           schema:
             type: integer
             minimum: 1
@@ -670,8 +696,9 @@ components:
             $ref: "#/components/schemas/Error"
     ServiceUnavailable:
       description: >-
-        Temporarily unable to serve the request. Transient, but the attempt consumes the session
-        token — mint a new one instead of replaying the same request.
+        No persona is available for the drill right now — the only 503 (an infrastructure failure is
+        `500 INTERNAL_ERROR`). Transient, but the attempt consumes the session token — mint a new one
+        instead of replaying the same request.
       headers:
         X-Athos-Request-Id:
           $ref: "#/components/headers/RequestId"
@@ -1225,7 +1252,8 @@ components:
       description: >-
         At least one of `npn`, `email` or `platformAgentId` is required. `agencyId` and
         `platformAgencyId` may not be sent together. For every optional field, send it or omit it —
-        `null` is treated as omitted.
+        `null` is treated as omitted. Leading and trailing whitespace is removed from every string
+        field before validation and storage.
       properties:
         firstName:
           type: string

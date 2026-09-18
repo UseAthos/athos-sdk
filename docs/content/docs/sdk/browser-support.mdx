@@ -3,15 +3,16 @@ title: Browser support
 description: Supported browsers and how to detect unsupported ones before connecting.
 ---
 
-The SDK runs on **desktop Chrome, Edge, and Firefox only**.
+The SDK runs on **desktop Chromium-based browsers (Chrome, Edge, Opera, Brave, …) and desktop
+Firefox only**.
 
 <Callout type="warn">
   **Safari (desktop and iOS) and all mobile browsers are unsupported.** `create()` throws
   `BROWSER_NOT_SUPPORTED` synchronously on them. Detect ahead of time and prompt the user to switch
   to a supported desktop browser before they try to start a call.
 
-  The check is an **allowlist**, so it default-denies: anything it does not recognise as desktop
-  Chrome, Edge or Firefox is rejected with `reason: 'unknown'` — including environments that are not
+  The check is an **allowlist**, so it default-denies: anything it does not recognise as a desktop
+  Chromium-based browser or Firefox is rejected with `reason: 'unknown'` — including environments that are not
   a browser at all, such as server-side rendering and a jsdom test runner. **Call `create()` on the
   client only**, after mount, or it will throw during SSR/hydration.
 </Callout>

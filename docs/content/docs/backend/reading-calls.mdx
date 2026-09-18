@@ -189,8 +189,9 @@ call, or when the analysis step did not complete, the call still scores but has 
 <Callout type="info">
   **`complianceScorecard` is optional — check for it, don't assume it.** On practice calls it appears
   on Medicare Advantage drills only, and only when the call ran at least five minutes; a shorter MA
-  call and every Final Expense call omit the key. On a real call it is present when the call was
-  assessed for compliance. When there is none the key is **absent**, not `null`. Its sections are
+  call and every Final Expense call omit the key. On a real call it appears only on a Medicare
+  Advantage call that ended in a sale — never on a Final Expense one. When there is none the key is
+  **absent**, not `null`. Its sections are
   graded content and may gain items over time — read `totalScore` and treat the rest as display
   detail. `totalScore` is itself omitted in the rare case where the underlying total is not a usable
   number; treat an absent `totalScore` as *not assessed*, never as zero.
@@ -201,9 +202,9 @@ call, or when the analysis step did not complete, the call still scores but has 
 `audioUrl` is either a **short-lived signed link** to Athos's own archived recording — with
 `audioUrlExpiresAt` set to the moment it stops working, about an hour after the request — or
 `null`, in which case `audioUrlExpiresAt` is `null` too and there is nothing to play (a practice
-call recorded before archiving was enabled, a real call whose recording was not archived, or the
-rare case where a recording exists but could not be prepared, which a later request usually
-resolves).
+call recorded before archiving was enabled, a real call whose recording was not archived, a real
+call older than **30 days** — its archived recording has been deleted — or the rare case where a
+recording exists but could not be prepared, which a later request usually resolves).
 
 Use the link directly in an `<audio>` element or a download link. **Do not store it**, email it or
 embed it anywhere long-lived: when you need it again, fetch the call again and you get a fresh one.

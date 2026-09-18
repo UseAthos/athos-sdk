@@ -39,16 +39,31 @@ dialer goes live. Athos attributes each call to a registered agent by trying, in
   rep's email or NPN as well, the same values the dialer sends, or their calls will not find them.
 </Callout>
 
+Two more rules of attribution:
+
+- The rep must be registered in the **agency the dialer connection belongs to**. Attribution only
+  looks inside that agency, so a rep registered under one of your other agencies is not found.
+- A match on **email** additionally requires the name you registered to agree with the name the
+  dialer sends — at least one of the rep's first or last name must appear in it. This keeps a shared
+  mailbox from attributing one rep's calls to another. NPN and `platformAgentId` matches carry no
+  such check.
+
 ## What differs on a real call
 
 - `source` is `"real_call"` and `drillKey` is `null`.
 - `startedAt` is when the call started; `endedAt` is derived as `startedAt` + `durationSec`. The
   list's `from` / `to` window and ordering use `startedAt`.
 - `transcript` turns carry `startTime` / `endTime` in seconds from the start of the call.
-- `score.overallScore` is 60–100.
-- `score.complianceScorecard` is present when the call was assessed for compliance.
+- `score.overallScore` is 60–100 (`0` when no headline score could be produced).
+- `score.complianceScorecard` is present only on a **Medicare Advantage** call that ended in a
+  **sale**. A Final Expense real call never carries one.
 - `audioUrl` is a short-lived signed link to Athos's own archived copy of the dialer recording
   (with `audioUrlExpiresAt`), or `null` when no archive exists — never the dialer's own URL.
+  **Archived recordings are kept for 30 days.** After that the call still reads normally, with
+  `audioUrl: null`; fetch and store the recording within that window if you need it longer.
+- A real call can be **re-dispositioned** by the dialer after it was scored. That can change
+  `score` (including `complianceScorecard`) and `scoredAt` **without a new `call.scored`
+  delivery** — re-read real calls on a schedule if you cache them.
 
 Everything else — the ids, verifying the webhook signature, paging, reading the `score` object — is
 identical to practice calls. See [Webhooks](/backend/webhooks) and

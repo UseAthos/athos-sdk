@@ -28,7 +28,10 @@ redeem endpoint accepts browser (CORS) requests. See [Authentication](/authentic
 - **Success:** returns the resource JSON **directly** (no envelope).
 - **Errors:** `{ "error": { "code", "message", "requestId" } }`. Branch on `code` — see
   [error codes](/reference/errors).
-- **Request id:** every response carries `X-Athos-Request-Id`. Quote it in support tickets.
+- **Request id:** every response from a v1 endpoint carries `X-Athos-Request-Id`. Quote it in
+  support tickets.
+- **Rate limits:** none are enforced in v1. Poll `GET /calls` on a schedule rather than in a tight
+  loop; the `call.scored` webhook is the notification.
 - **Versioning:** the path is pinned to `/v1`. Breaking changes ship under a new version; `/v1` stays
   available for at least six months past any successor.
 

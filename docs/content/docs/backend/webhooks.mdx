@@ -95,7 +95,9 @@ What that means for your handler:
 - **A real call dropped before it was persisted produces no delivery at all** — too short to
   assess, no usable audio, a transcript that could not be produced, or a rep who is not registered.
   A real call that was persisted but could not be scored arrives as `success: false`. A
-  re-disposition of an already-scored real call does not fire again.
+  re-disposition of an already-scored real call does **not** fire again — even though it can change
+  that call's `score` (including `complianceScorecard`) and `scoredAt`. If you cache scores,
+  re-read real calls on a schedule rather than treating the first delivery as final.
 
 ## Verifying the signature
 
@@ -123,11 +125,12 @@ function verifyAthosSignature(rawBody: string, header: string | undefined, secre
   if (!header) return false;
   const parts = Object.fromEntries(header.split(',').map((kv) => kv.split('=')));
   const { t, v1 } = parts;
-  if (!t || !v1) return false;
+  // Both values are attacker-controlled — check their shape before doing anything with them.
+  // (`timingSafeEqual` throws on a length mismatch, and a non-hex string decodes to zero bytes.)
+  if (!t || !v1 || !/^\d+$/.test(t) || !/^[0-9a-f]{64}$/i.test(v1)) return false;
   if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // 5-min replay window
   const expected = crypto.createHmac('sha256', secret).update(`${t}.${rawBody}`).digest('hex');
-  return v1.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(v1, 'hex'), Buffer.from(expected, 'hex'));
+  return crypto.timingSafeEqual(Buffer.from(v1, 'hex'), Buffer.from(expected, 'hex'));
 }
 
 // Mount with a RAW body parser so the bytes are untouched.
@@ -151,20 +154,22 @@ app.post('/athos/webhook', express.raw({ type: 'application/json' }), (req, res)
 </Tab>
 <Tab value="Python">
 ```python
-import hmac, hashlib, time, os
+import hmac, hashlib, re, time, os
 from flask import Flask, request
 
 def verify_athos_signature(raw_body: bytes, header: str, secret: str) -> bool:
     if not header:
         return False
-    parts = dict(p.split("=", 1) for p in header.split(","))
+    parts = dict(p.split("=", 1) for p in header.split(",") if "=" in p)
     t, v1 = parts.get("t"), parts.get("v1")
-    if not t or not v1:
+    # Both values are attacker-controlled — check their shape before doing anything with them.
+    # (`int()` raises on a non-numeric `t`; `compare_digest` raises on non-ASCII input.)
+    if not t or not v1 or not t.isdigit() or not re.fullmatch(r"[0-9a-fA-F]{64}", v1):
         return False
     if abs(time.time() - int(t)) > 300:           # 5-min replay window
         return False
     expected = hmac.new(secret.encode(), f"{t}.".encode() + raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, v1)
+    return hmac.compare_digest(expected, v1.lower())
 
 @app.post("/athos/webhook")
 def athos_webhook():
@@ -201,6 +206,19 @@ def athos_webhook():
   lands minutes later, so each poll must re-scan a window that **overlaps** the previous one (an
   hour plus the longest real call you expect) and deduplicate on the call `id`. A forward-only
   watermark misses calls that were scored after you read past them.
+
+## Operational notes
+
+- **Rotating the signing secret is immediate.** An endpoint holds one secret and there is no overlap
+  window: from the moment Athos rotates it, every delivery — including a retry that was already
+  pending — is signed with the new secret, and the old one stops verifying. Agree a deploy window
+  with your Athos contact and switch `ATHOS_WHSEC` at that moment.
+- **`platformAgentId` / `platformAgencyId` can be `null` on a `success: false` event** even for a
+  rep you registered under your own id — the ids are resolved at delivery time and a failed attempt
+  takes a shorter path. `agentId` / `agencyId` are always present; join on those when yours are
+  missing.
+- **Recordings of real calls are kept for 30 days** — see
+  [Real-call analysis](/backend/real-call-analysis#what-differs-on-a-real-call).
 
 ## A note on frameworks
 
