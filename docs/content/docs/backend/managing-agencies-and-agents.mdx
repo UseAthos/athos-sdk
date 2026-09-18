@@ -8,6 +8,9 @@ each. Your backend maintains it with three calls: register, look up, update. Eve
 or real — is attributed to one agent and one agency on this roster, and the two ids registration
 returns are what you use everywhere else.
 
+A **handle** is any of the three values a rep can be identified by: `npn` (National Producer
+Number), `email`, or `platformAgentId` (your own id for them).
+
 ## Register — `POST /v1/agents`
 
 ```http
@@ -23,7 +26,7 @@ Content-Type: application/json
     firstName: { type: 'string', required: true },
     lastName: { type: 'string', required: true },
     email: { type: 'string', description: 'Stored lowercased.' },
-    npn: { type: 'string', description: 'Non-digits are stripped; what is left must be 4–10 digits.' },
+    npn: { type: 'string', description: 'National Producer Number. Non-digits are stripped; what is left must be 4–10 digits.' },
     platformAgentId: {
       type: 'string',
       description: 'Your own id for the rep. Unique within your account; may not begin with athos_agent_ or athos_agency_.',
@@ -138,8 +141,8 @@ handle is `400 INVALID_REQUEST`.
 | `npn` | Non-digits are stripped before matching; what is left must be 4–10 digits or the request is a `400`. |
 | `email` | Matched case-insensitively. |
 | `agencyId` | Restrict to one of your agencies (an id that is not yours is `404 AGENCY_NOT_FOUND`). Combines with a handle by AND. |
-| `limit` | Page size, default `50`, max `100`. |
-| `cursor` | Opaque token from a previous `nextCursor`. |
+| `limit` | Page size, 1–100, default `50`. Out of range or not an integer is `400 INVALID_REQUEST` — it is not clamped. |
+| `cursor` | Opaque token from a previous `nextCursor`. A cursor you did not get from this endpoint is `400 INVALID_REQUEST`. |
 
 With `agencyId` alone it lists that agency's agents. With **no filter at all** it lists your whole
 roster.
@@ -175,7 +178,7 @@ stop when `nextCursor` is `null`, and never parse a cursor. `GET /v1/agents` and
 [`GET /v1/calls`](/backend/reading-calls) return the same `{ data, nextCursor }` envelope, so one
 pager loop serves both.
 
-## Update an agency — `PATCH /v1/agencies/{agencyId}`
+## Update an agency — `PATCH /v1/agencies/:agencyId`
 
 Rename an agency and/or set your own id on it. Send only what you are changing; at least one field
 is required, and `null` is treated as omitted.
@@ -224,7 +227,7 @@ value is a `400 INVALID_REQUEST`. Two rules:
   `400 INVALID_REQUEST` everywhere.
 - Each is **unique within your account**. A `platformAgentId` already registered answers
   `409 AGENT_ALREADY_EXISTS`. A `platformAgencyId` you already registered **joins** that agency at
-  registration; only `PATCH /v1/agencies/{agencyId}` with another agency's value is
+  registration; only `PATCH /v1/agencies/:agencyId` with another agency's value is
   `400 INVALID_REQUEST`.
 
 The id you register a rep under is also what attributes their real calls — see

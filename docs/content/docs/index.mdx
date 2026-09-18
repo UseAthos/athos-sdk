@@ -38,13 +38,13 @@ Athos API** — and finishes with a webhook back to your backend:
            │ (2) hand token to the browser                          │
            ▼                                                        │
   ┌─────────────────┐                                              │
-  │  Your frontend  │ ──(3) AthosRoleplay.create({ token }) ──────▶ │  live roleplay call
-  │ (@useathos/sdk) │        session.connect()                     │  (agent speaks)
+  │  Your frontend  │ ─(3) AthosRoleplay.create({ token, drillKey })│  live roleplay call
+  │ (@useathos/sdk) │        session.connect() ───────────────────▶ │  (persona speaks)
   └─────────────────┘                                              │
                                                                     │ (4) call is scored
   ┌─────────────────┐                                              ▼
   │   Your backend  │ ◀──(5) POST call.scored (signed) ──────────  │
-  │  (webhook URL)  │ ──(6) GET /v1/calls/:id ───────────────────▶ │  full score + transcript
+  │  (webhook URL)  │ ──(6) GET /v1/calls/:callId ───────────────▶ │  full score + transcript
   └─────────────────┘                                              └──────────────────────┘
 ```
 
@@ -53,7 +53,7 @@ Athos API** — and finishes with a webhook back to your backend:
 3. The SDK redeems it and starts the live call — the AI persona speaks to your rep.
 4. When the call ends, Athos transcribes and scores it.
 5. Athos sends your backend a signed **`call.scored`** webhook.
-6. Your backend fetches the full score + transcript with **`GET /v1/calls/:id`**.
+6. Your backend fetches the full score + transcript with **`GET /v1/calls/:callId`**.
 
 ## Two kinds of credentials
 
@@ -65,9 +65,9 @@ token** your backend mints with it, good for one call. The browser never sees th
 
 <Cards>
   <Card title="Quickstart" href="/quickstart">
-    From zero to a live, scored call in about 15 minutes.
+    From your credentials to a live, scored call in about 15 minutes.
   </Card>
   <Card title="Core concepts" href="/concepts">
-    Tenancy, identifiers, the call lifecycle, and call sources.
+    Tenancy, identifiers, drills and personas, the call lifecycle, and call sources.
   </Card>
 </Cards>

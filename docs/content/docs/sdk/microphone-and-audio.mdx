@@ -5,6 +5,9 @@ description: Device selection, mute, autoplay recovery, and reconnect behavior.
 
 The SDK manages the microphone and the audio element for you. It auto-creates the `<audio>` element
 that plays the persona's voice and appends it to the page — you don't manage playback yourself.
+The page must be served over **HTTPS** (or `localhost`): browsers withhold microphone access
+entirely on a plain `http://` origin, which the SDK reports as `NO_MIC_AVAILABLE` (see
+[Requirements](/sdk#requirements)).
 
 ## Permission is requested before the call starts
 
@@ -15,9 +18,8 @@ billed — so a rep who blocks the mic cannot leave a charged session that never
 That guarantee covers the pre-connect prompt only. The same codes can also be raised **after**
 redemption — a mic unplugged in the moment between the permission check and the call going live —
 and from the code alone you cannot tell which happened. So retry the token once, and mint a fresh
-one only if that retry says the token is gone. A session whose `connect()` *failed* goes back to
-idle and can be reused — but a session you cancelled with `disconnect()`, or one whose call actually
-ran, is finished. Creating a fresh session per attempt is the rule that always holds:
+one only if that retry says the token is gone. **Create a new session for every attempt**; a session
+is finished once you call `disconnect()` or its call has ended:
 
 ```ts
 import { AthosRoleplay, AthosRoleplayError } from '@useathos/sdk';
@@ -71,9 +73,6 @@ cancelButton.onclick = () => {
 ```
 
 That session object is spent either way — start the next attempt with a new one.
-
-Your page must be served over **HTTPS** (or `localhost`). Browsers withhold microphone access
-entirely on a plain `http://` origin, which the SDK reports as `NO_MIC_AVAILABLE`.
 
 ## Selecting a microphone
 

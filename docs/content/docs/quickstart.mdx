@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: From zero to a live, scored roleplay call in about 15 minutes.
+description: From your credentials to a live, scored roleplay call in about 15 minutes.
 ---
 
 This walks through the entire loop: register a rep, mint a token, start a live call from the
@@ -8,8 +8,9 @@ browser, receive the `call.scored` webhook, and read the score. Every REST call 
 keep your API key on your backend.
 
 <Callout type="info">
-  **Base URL:** `https://app.useathos.ai/api/external/v1`. You'll get an API key from your Athos
-  contact — see [Authentication](/authentication).
+  **Base URL:** `https://app.useathos.ai/api/external/v1`. Paths in these docs are written `/v1/…`
+  — `POST /v1/session` means `POST https://app.useathos.ai/api/external/v1/session`. You'll get an
+  API key from your Athos contact — see [Authentication](/authentication).
 </Callout>
 
 <Steps>
@@ -21,7 +22,7 @@ keep your API key on your backend.
 There's no self-serve signup — setup is a quick coordination with the Athos team. You give us one
 thing, and we send you two:
 
-**You provide:** your **HTTPS webhook URL** (where events should be delivered).
+**You provide:** your **HTTPS webhook URL** (where `call.scored` events should be delivered).
 
 **Athos sends you** (each shown once — store both as backend secrets):
 
@@ -31,15 +32,15 @@ thing, and we send you two:
 We register your webhook URL on our side and start delivering events to it. Keep both
 secrets server-side — the API key never goes near a browser.
 
-</Step>
+<Callout type="info">
+  **Developing on a laptop?** Expose your local handler with a tunnel (ngrok, cloudflared) and give
+  us that URL — you can change it later. No URL yet? Skip the webhook for now and read the score
+  with `GET /v1/calls/:callId` in the last step; events are not queued for later delivery. See
+  [Registering your endpoint](/backend/webhooks#registering-your-endpoint).
 
-<Step>
-
-### Install the SDK
-
-```bash
-npm install @useathos/sdk
-```
+  Your key is a live key: every call runs against the real service and is billed. Keep test data
+  apart by registering test reps under a dedicated `platformAgencyId`.
+</Callout>
 
 </Step>
 
@@ -48,7 +49,9 @@ npm install @useathos/sdk
 ### Register the rep (backend, once per person)
 
 A session token is only minted for a **registered agent**, so register each rep once — with your
-own id for them — before their first practice call. An agency is created for them automatically.
+own id for them — before their first practice call. An **agency** (one of your customers — a group
+of reps) is created for them automatically, named after the rep; rename it any time with
+[`PATCH /v1/agencies/:agencyId`](/backend/managing-agencies-and-agents#update-an-agency--patch-v1agenciesagencyid).
 
 ```bash
 curl -X POST https://app.useathos.ai/api/external/v1/agents \
@@ -91,20 +94,35 @@ Node and Python versions of that endpoint are on
 
 <Step>
 
+### Install the SDK
+
+```bash
+npm install @useathos/sdk
+```
+
+</Step>
+
+<Step>
+
 ### Start the call (frontend)
 
 <Callout type="warn">
-  Roleplay calls run on **desktop Chrome, Edge, and Firefox only** — `create()` throws
-  `BROWSER_NOT_SUPPORTED` on anything else, so call it on the client and check first. See
-  [Browser support](/sdk/browser-support).
+  Roleplay calls run on **desktop Chromium-based browsers (Chrome, Edge, Brave, Opera, …) and
+  desktop Firefox only** — `create()` throws `BROWSER_NOT_SUPPORTED` on anything else, so call it
+  on the client and check first. The page must be served over **HTTPS** (or `localhost`), or the
+  browser withholds the microphone. See [Requirements](/sdk#requirements).
 </Callout>
 
-`create()` is synchronous, so register handlers **before** `connect()` — nothing is missed.
+`drillKey` picks the scenario: `ma-full-sale` (Medicare Advantage) or `fe-full-sale` (Final
+Expense) — see [Drills](/reference/drills). `create()` is synchronous, so register handlers
+**before** `connect()` — nothing is missed.
 
 ```ts
 import { AthosRoleplay } from '@useathos/sdk';
 
-const { token } = await fetch('/athos/token', { method: 'POST' }).then((r) => r.json());
+const r = await fetch('/athos/token', { method: 'POST' });
+if (!r.ok) throw new Error((await r.json()).error.code); // e.g. TENANT_QUOTA_EXCEEDED
+const { token } = await r.json();
 
 const session = AthosRoleplay.create({ token, drillKey: 'ma-full-sale' });
 
@@ -114,7 +132,6 @@ session.on('error', ({ code, message }) => console.error(code, message));
 
 await session.connect(); // joins the call; the AI persona starts speaking
 
-// The persona never hangs up — your UI has to end the call.
 endCallButton.onclick = () => session.disconnect();
 ```
 
@@ -124,6 +141,9 @@ endCallButton.onclick = () => session.disconnect();
   (and bills) the full two hours. See [How a call ends](/sdk#how-a-call-ends).
 </Callout>
 
+Talk to the persona for a minute or two before you hang up — a call on which the rep never speaks
+is not scored (the webhook arrives with `success: false`).
+
 That's the whole frontend. See the [SDK guide](/sdk) for events, microphone control, and
 browser detection.
 
@@ -131,9 +151,10 @@ browser detection.
 
 <Step>
 
-### Receive the event webhook (backend)
+### Receive the `call.scored` webhook (backend)
 
-When the call finishes scoring, Athos POSTs a small, signed payload to your registered URL:
+`call.scored` typically arrives within a minute or two of the call ending. Athos POSTs a small,
+signed payload to your registered URL:
 
 ```json
 {
@@ -156,7 +177,8 @@ afterwards. Copy a verifier — Node or Python — from
 [Webhooks](/backend/webhooks#verifying-the-signature).
 
 `success` is `false` when the call could not be scored — there is no score to fetch for it. Retries
-reuse the same `X-Athos-Webhook-Id`, so treat that header as your idempotency key.
+reuse the same `X-Athos-Webhook-Id`, so treat that header as your idempotency key. If nothing has
+arrived 30 minutes after the call ended, read `GET /v1/calls/:callId` directly.
 
 </Step>
 
@@ -181,6 +203,15 @@ The response includes the `transcript` (a list of speaker-labelled turns) and th
 You've run the full loop. Next:
 
 <Cards>
+  <Card title="Reading calls" href="/backend/reading-calls">
+    List a rep's or an agency's history, page through it, and play the recording.
+  </Card>
+  <Card title="Webhooks" href="/backend/webhooks">
+    Retries, deduplication, `success: false`, and reconciling by polling.
+  </Card>
+  <Card title="SDK events" href="/sdk/events">
+    Drive your call UI from the session lifecycle.
+  </Card>
   <Card title="Authentication" href="/authentication">
     Key rotation, the session-token lifecycle, and the support flow.
   </Card>

@@ -19,6 +19,14 @@ queued for later delivery. Polling [`GET /v1/calls`](/backend/reading-calls) is 
 before that point, so register the endpoint before you rely on webhooks in production.
 
 <Callout type="info">
+  **Testing locally.** Deliveries come from the internet, so your handler needs a public HTTPS URL.
+  Expose a local server with a tunnel (ngrok, cloudflared) and register the tunnel URL; ask your
+  Athos contact to swap it for the production URL when you deploy. Your handler is plain HTTP, so
+  you can also unit-test it: sign a body yourself with the secret and the recipe below, then POST
+  it to your handler.
+</Callout>
+
+<Callout type="info">
   We trust the URL you give us, so double-check it. If a delivery later fails — your endpoint is
   down, returns a non-2xx, or the URL is wrong — it's recorded in our delivery logs and we'll reach
   out. (Non-HTTPS URLs are rejected, and redirects on delivery are not followed.)
@@ -29,7 +37,7 @@ before that point, so register the endpoint before you rely on webhooks in produ
 ```http
 POST https://your-app.example.com/athos/webhook
 Content-Type: application/json
-X-Athos-Signature: t=1749139254,v1=3a8f1c…e92
+X-Athos-Signature: t=1780682954,v1=3a8f1c…e92
 X-Athos-Webhook-Id: wh_2c7e9a04-…
 ```
 
@@ -58,12 +66,20 @@ X-Athos-Webhook-Id: wh_2c7e9a04-…
 | `source` | `"roleplay"` for a practice call run through the SDK; `"real_call"` for a real call ingested from the agency's dialer (see [Real-call analysis](/backend/real-call-analysis)). |
 | `agentId` / `agencyId` | The Athos ids of the rep who took the call and their agency. Always present. |
 | `platformAgentId` / `platformAgencyId` | Your own ids for the same rep and agency, or `null` if you never registered one — join on `agentId` / `agencyId` then. See [Two id families](/concepts#two-id-families). |
-| `occurredAt` | ISO 8601 timestamp of the event. |
+| `occurredAt` | ISO 8601 UTC timestamp of the event. |
 | `requestId` | A delivery support id — quote it to Athos if a delivery looks wrong. |
 
 The body never contains a `score` or a transcript. Fetch those with
-[`GET /v1/calls/:id`](/backend/reading-calls). The same body is declared as the `call.scored`
+[`GET /v1/calls/:callId`](/backend/reading-calls). The same body is declared as the `call.scored`
 webhook in the [OpenAPI spec](/openapi.yaml) (`CallScoredEvent`), so a generated client can type it.
+
+## When it arrives
+
+`call.scored` typically arrives **within a minute or two** of the call ending — `ended` in the SDK
+for a practice call. If nothing has arrived **30 minutes** after the call ended, read
+[`GET /v1/calls/:callId`](/backend/reading-calls) directly: a `200` means the delivery was missed
+(see [retries](#responding-retries-and-idempotency)); a `404 CALL_NOT_FOUND` means the call did not
+score, or scoring is still running.
 
 ## When `success` is `false`
 
@@ -92,12 +108,11 @@ What that means for your handler:
 - **There is no score to fetch.** Don't call `GET /v1/calls/:callId` on a `success: false` event.
 - **A failed call is not billed, but it does count toward your monthly usage allowance** (the one
   `TENANT_QUOTA_EXCEEDED` reports), because the call itself ran.
-- **A real call dropped before it was persisted produces no delivery at all** — too short to
-  assess, no usable audio, a transcript that could not be produced, or a rep who is not registered.
-  A real call that was persisted but could not be scored arrives as `success: false`. A
-  re-disposition of an already-scored real call does **not** fire again — even though it can change
-  that call's `score` (including `complianceScorecard`) and `scoredAt`. If you cache scores,
-  re-read real calls on a schedule rather than treating the first delivery as final.
+- **`platformAgentId` / `platformAgencyId` may be `null`** on a `success: false` event even for a
+  rep you registered under your own id. `agentId` / `agencyId` are always present — join on those.
+- **Real calls have their own rules** for which attempts produce a delivery at all, and a real call's
+  score can change later without a new delivery — see
+  [What differs on a real call](/backend/real-call-analysis#what-differs-on-a-real-call).
 
 ## Verifying the signature
 
@@ -163,8 +178,9 @@ def verify_athos_signature(raw_body: bytes, header: str, secret: str) -> bool:
     parts = dict(p.split("=", 1) for p in header.split(",") if "=" in p)
     t, v1 = parts.get("t"), parts.get("v1")
     # Both values are attacker-controlled — check their shape before doing anything with them.
-    # (`int()` raises on a non-numeric `t`; `compare_digest` raises on non-ASCII input.)
-    if not t or not v1 or not t.isdigit() or not re.fullmatch(r"[0-9a-fA-F]{64}", v1):
+    # (`int()` raises on anything but ASCII digits — `str.isdigit()` and `\d` also accept Unicode
+    # digits such as "²", so match [0-9] explicitly. `compare_digest` raises on non-ASCII input.)
+    if not t or not v1 or not re.fullmatch(r"[0-9]+", t) or not re.fullmatch(r"[0-9a-fA-F]{64}", v1):
         return False
     if abs(time.time() - int(t)) > 300:           # 5-min replay window
         return False
@@ -201,11 +217,8 @@ def athos_webhook():
 - **Deduplicate on `X-Athos-Webhook-Id`.** It's stable across the retry, so the same event can arrive
   twice with the same id. Treat that id as your idempotency key.
 - **Polling is the backstop.** If both delivery attempts fail, the event won't be redelivered later —
-  reconcile by polling [`GET /v1/calls`](/backend/reading-calls) on a schedule. That endpoint filters
-  on the call's own time (when a practice call **ended**, when a real call **started**), and scoring
-  lands minutes later, so each poll must re-scan a window that **overlaps** the previous one (an
-  hour plus the longest real call you expect) and deduplicate on the call `id`. A forward-only
-  watermark misses calls that were scored after you read past them.
+  reconcile by polling `GET /v1/calls` on a schedule, with an overlapping window: see
+  [Reconciling by polling](/backend/reading-calls#reconciling-by-polling).
 
 ## Operational notes
 
@@ -213,10 +226,6 @@ def athos_webhook():
   window: from the moment Athos rotates it, every delivery — including a retry that was already
   pending — is signed with the new secret, and the old one stops verifying. Agree a deploy window
   with your Athos contact and switch `ATHOS_WHSEC` at that moment.
-- **`platformAgentId` / `platformAgencyId` can be `null` on a `success: false` event** even for a
-  rep you registered under your own id — the ids are resolved at delivery time and a failed attempt
-  takes a shorter path. `agentId` / `agencyId` are always present; join on those when yours are
-  missing.
 - **Recordings of real calls are kept for 30 days** — see
   [Real-call analysis](/backend/real-call-analysis#what-differs-on-a-real-call).
 
@@ -224,7 +233,10 @@ def athos_webhook():
 
 The one thing to get right everywhere is **raw body access**:
 
-- **Express:** `express.raw({ type: 'application/json' })` on the webhook route only.
+- **Express:** `express.raw({ type: 'application/json' })` on the webhook route only. If you mount
+  `app.use(express.json())` globally *before* this route, the body is already consumed and
+  `req.body.toString()` is `"[object Object]"` — register the webhook route first, or exclude its
+  path from the global parser.
 - **Next.js (App Router):** read `await req.text()` in the route handler and verify that string.
 - **Flask/FastAPI:** use `request.get_data()` / the raw `Request` body, not the parsed JSON.
 

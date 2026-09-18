@@ -116,7 +116,8 @@ def athos_token():
 ## Rules of the road
 
 - **Mint at the moment of use.** The token lives ~5 minutes and is single-use. Mint it when the rep
-  clicks "start practice", hand it straight to `AthosRoleplay.create({ token })`, and connect.
+  clicks "start practice", hand it straight to `AthosRoleplay.create({ token, drillKey })`, and
+  connect.
 - **One token per call.** Reusing a token returns `TOKEN_ALREADY_USED` at the SDK.
 - **Server-to-server only.** This endpoint is not CORS-enabled (no `Access-Control-Allow-Origin`),
   so a browser blocks the response — it must be called from your backend.
@@ -132,6 +133,7 @@ def athos_token():
 | 403 | `IP_NOT_ALLOWED` | Only if an IP allowlist is configured for your tenant: the request came from an address outside it. |
 | 403 | `TENANT_QUOTA_EXCEEDED` | Your tenant's monthly usage allowance is spent. |
 | 404 | `AGENT_NOT_FOUND` | No agent of yours is registered under that id. Register the rep first, or resolve an NPN or email to an id with `GET /v1/agents`. |
+| 500 | `INTERNAL_ERROR` | An unexpected error. Retry; if it persists, contact Athos with the `requestId`. |
 
 `TENANT_QUOTA_EXCEEDED` issues no token and is not retryable — the allowance lifts at the start of
 the next calendar month, or when your Athos contact raises it. It is measured in call minutes across
