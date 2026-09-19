@@ -14,9 +14,9 @@ Paths in these docs are written `/v1/…`: `POST /v1/session` means
 
 | Method & path | Auth | CORS | Purpose |
 | --- | --- | --- | --- |
-| `POST /v1/agents` | API key | ❌ | [Register an agent](/backend/managing-agencies-and-agents), creating their agency if needed. |
+| `POST /v1/agencies` | API key | ❌ | [Create or rename an agency](/backend/managing-agencies-and-agents#create-or-update-an-agency--post-v1agencies) under your own id — the first roster call. |
+| `POST /v1/agents` | API key | ❌ | [Register an agent](/backend/managing-agencies-and-agents#register--post-v1agents) into an existing agency. |
 | `GET /v1/agents` | API key | ❌ | [Look agents up](/backend/managing-agencies-and-agents#look-up--get-v1agents) by any handle, or page the roster. |
-| `PATCH /v1/agencies/:agencyId` | API key | ❌ | [Rename an agency](/backend/managing-agencies-and-agents#update-an-agency--patch-v1agenciesagencyid) or set your own id on it. |
 | `POST /v1/session` | API key | ❌ | [Mint a session token](/backend/minting-tokens) for the SDK. |
 | `POST /v1/roleplay/session` | Session token | ✅ | Redeem a token and start a call. **Called by the SDK**, not you. |
 | `GET /v1/calls` | API key | ❌ | [List scored calls](/backend/reading-calls) (cursor-paginated). |

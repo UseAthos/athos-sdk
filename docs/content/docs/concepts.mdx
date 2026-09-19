@@ -13,11 +13,12 @@ usage — belongs to your tenant, and the API only ever returns your tenant's da
 
 Within your tenant, Athos keeps a **roster**, maintained entirely through this API:
 
-- An **agency** is one of your customers — a group of reps. It is created for you the first time
-  you register a rep without naming one, and you can rename it.
-- An **agent** is a rep. Each agent belongs to exactly one agency and is registered once, with at
-  least one **handle**: their NPN (National Producer Number), their email, or your own id for them
-  (`platformAgentId`).
+- An **agency** is one of your customers — a group of reps. You create it first, under your own
+  id for it (`platformAgencyId`), and the same call renames it later.
+- An **agent** is a rep. Each agent belongs to exactly one agency — named at registration by your
+  `platformAgencyId` or the Athos `agencyId` — and is registered once, with at least one
+  **handle**: their NPN (National Producer Number), their email, or your own id for them
+  (`platformAgentId`). Registration never creates an agency.
 
 Every call is attributed to one agent and one agency, so you can read calls back **by agency and
 by rep**. A rep must be registered before their first roleplay: a session token is only minted for
@@ -35,11 +36,13 @@ a registered agent. See [Managing agencies and agents](/backend/managing-agencie
 Every agent, agency, call and `call.scored` delivery carries two families of id for the same rep
 and agency, under the same names everywhere:
 
-- **Ours — `agentId` / `agencyId`** (and `callId`): the Athos ids registration returned. Always
+- **Ours — `agentId` / `agencyId`** (and `callId`): the Athos ids the roster calls returned. Always
   present. Pass them back as `?agentId=` / `?agencyId=` on `GET /v1/calls`, `agentId` on the mint,
-  and `:agencyId` on `PATCH /v1/agencies/:agencyId`.
+  and `agencyId` on `POST /v1/agents`.
 - **Yours — `platformAgentId` / `platformAgencyId`**: the ids you registered, echoed back on every
-  object. `null` when you never registered one — join on `agentId` / `agencyId` in that case.
+  object — `platformAgencyId` is the id you created the agency with, `platformAgentId` the one you
+  registered the rep under. Either is `null` when you never gave one (a rep registered without
+  `platformAgentId`) — join on `agentId` / `agencyId` in that case.
 
 Your own ids may not begin with `athos_agent_` or `athos_agency_`, and each is unique within your
 tenant.
@@ -48,7 +51,7 @@ tenant.
 
 | Id | Looks like | What it is |
 | --- | --- | --- |
-| **`agencyId`** | `athos_agency_V1StGXR8…` | An agency of yours. Returned at registration; use it for `PATCH /v1/agencies/:agencyId`, to register further agents into it, and for `GET /v1/calls?agencyId=`. |
+| **`agencyId`** | `athos_agency_V1StGXR8…` | An agency of yours. Returned by `POST /v1/agencies` (and echoed at registration); use it to register agents into the agency (or use your own `platformAgencyId`) and for `GET /v1/calls?agencyId=`. |
 | **`agentId`** | `athos_agent_bR4kQ2wZ…` | A rep. Returned at registration; look the rep up with `GET /v1/agents?agentId=`, mint with it, and list their calls with `GET /v1/calls?agentId=`. |
 | **`callId`** | `athos_call_GZ1DjOkZv_…` | A call. Use it for `GET /v1/calls/:callId`; it is the `callId` in webhooks and in the SDK `ended` event. |
 | **`requestId`** | `req_2f8c1e94-…` | Returned on every API response as the `X-Athos-Request-Id` header. Quote it in support tickets. |
