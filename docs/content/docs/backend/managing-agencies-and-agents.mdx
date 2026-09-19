@@ -1,15 +1,93 @@
 ---
 title: Managing agencies and agents
-description: Register your reps, get an agency for each customer for free, and look anyone up by the id you already hold.
+description: Create an agency under your own id, register your reps into it, and look anyone up by the id you already hold.
 ---
 
 Athos keeps a **roster** for your account: the **agencies** you serve and the **agents** (reps) in
-each. Your backend maintains it with three calls: register, look up, update. Every call — practice
-or real — is attributed to one agent and one agency on this roster, and the two ids registration
-returns are what you use everywhere else.
+each. Your backend maintains it with three calls, in this order: **create the agency**, **register
+its reps**, **look anyone up**. Every call — practice or real — is attributed to one agent and one
+agency on this roster, and the ids these calls return are what you use everywhere else.
+
+An agency always comes first. Registration never creates one: a rep is registered *into* an agency
+you have already created, named by your own id for it.
 
 A **handle** is any of the three values a rep can be identified by: `npn` (National Producer
 Number), `email`, or `platformAgentId` (your own id for them).
+
+## Create or update an agency — `POST /v1/agencies`
+
+One call creates an agency under **your own id** for it, and the same call renames it later. Send it
+once per agency before you register that agency's first rep — and again whenever the name changes.
+
+```http
+POST https://app.useathos.ai/api/external/v1/agencies
+Authorization: Bearer ath_live_…
+Content-Type: application/json
+```
+
+**Request body**
+
+<TypeTable
+  type={{
+    platformAgencyId: {
+      type: 'string',
+      required: true,
+      description: 'Your own id for the agency — the key. Unique within your account; may not begin with athos_agent_ or athos_agency_.',
+    },
+    name: { type: 'string', required: true, description: 'The display name of the agency, 1–200 characters. Athos staff see it too.' },
+  }}
+/>
+
+Both fields are required; `null` is treated as omitted (and so as missing). Leading and trailing
+whitespace is removed from both.
+
+**Response** `201 Created` when the agency was created, `200 OK` when one of your agencies already
+carried that `platformAgencyId` and its name was updated. The body is the same agency object either
+way:
+
+```json
+{
+  "id": "athos_agency_V1StGXR8Z5jdHi6B-myT",
+  "name": "Acme Senior Solutions",
+  "platformAgencyId": "acme-7731",
+  "createdAt": "2026-09-16T14:02:11.000Z"
+}
+```
+
+A repeat POST is always safe — it is how you rename an agency, and a POST with the same name is a
+no-op `200`. Two concurrent first POSTs for one `platformAgencyId` resolve to one agency. Ids are
+scoped to your account (another partner's agencies are invisible to you), so this endpoint has no
+`404`; a missing field or a reserved `athos_` prefix is `400 INVALID_REQUEST`.
+
+<Tabs items={['curl', 'Node']}>
+<Tab value="curl">
+```bash
+curl -X POST https://app.useathos.ai/api/external/v1/agencies \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"platformAgencyId":"acme-7731","name":"Acme Senior Solutions"}'
+```
+</Tab>
+<Tab value="Node">
+```ts
+const r = await fetch('https://app.useathos.ai/api/external/v1/agencies', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.ATHOS_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    platformAgencyId: agency.id, // your id for the agency
+    name: agency.name,
+  }),
+});
+const body = await r.json();
+if (r.status === 201 || r.status === 200) {
+  await db.saveAthosAgencyId(agency.id, body.id); // optional — you can keep using your own id
+}
+```
+</Tab>
+</Tabs>
 
 ## Register — `POST /v1/agents`
 
@@ -31,19 +109,20 @@ Content-Type: application/json
       type: 'string',
       description: 'Your own id for the rep. Unique within your account; may not begin with athos_agent_ or athos_agency_.',
     },
-    agencyId: {
-      type: 'string',
-      description: 'Put the agent in this existing agency (an athos_agency_… id you were given). Omit it to create one.',
-    },
     platformAgencyId: {
       type: 'string',
-      description: 'Your own id for the agency. If one of your agencies already carries it the agent joins that agency; otherwise a new agency is created with it. Not together with agencyId.',
+      description: 'Your own id for the agency, as you created it with POST /v1/agencies. Exactly one of platformAgencyId or agencyId is required.',
+    },
+    agencyId: {
+      type: 'string',
+      description: 'The Athos id of the agency (athos_agency_…), as POST /v1/agencies returned it. Exactly one of platformAgencyId or agencyId is required.',
     },
   }}
 />
 
-At least one of `npn`, `email` or `platformAgentId` is required. For every optional field, send it
-or omit it — `null` is treated as omitted.
+At least one of `npn`, `email` or `platformAgentId` is required, and **exactly one** of
+`platformAgencyId` or `agencyId` — neither or both is `400 INVALID_REQUEST`. For every optional
+field, send it or omit it — `null` is treated as omitted.
 
 **Response** `201 Created`
 
@@ -61,17 +140,18 @@ or omit it — `null` is treated as omitted.
   },
   "agency": {
     "id": "athos_agency_V1StGXR8Z5jdHi6B-myT",
-    "name": "Dana Reyes",
+    "name": "Acme Senior Solutions",
     "platformAgencyId": "acme-7731",
     "createdAt": "2026-09-16T14:02:11.000Z"
   }
 }
 ```
 
-With no `agencyId`, the agent is placed in a **new agency named after them** — there is no separate
-"create an agency" step. Rename it whenever you like (below). To add a second rep to that agency,
-send the same `platformAgencyId` again, or pass the agency's `id` as `agencyId`. An `agencyId` that
-is not yours is `404 AGENCY_NOT_FOUND`.
+The agency must already exist — registration **never creates one**. A `platformAgencyId` you have
+not created, or an `agencyId` that is not yours, is `404 AGENCY_NOT_FOUND`; create the agency with
+[`POST /v1/agencies`](#create-or-update-an-agency--post-v1agencies) and register again. Every rep
+of that agency is registered the same way, with the same `platformAgencyId` (or the same
+`agencyId`).
 
 **Already registered?** Registering a rep who already exists under any handle you sent is a
 `409 AGENT_ALREADY_EXISTS`. `error.details` carries the existing ids and which handle matched
@@ -115,7 +195,7 @@ const r = await fetch('https://app.useathos.ai/api/external/v1/agents', {
     lastName: rep.lastName,
     email: rep.email,
     platformAgentId: rep.id,         // your id for the rep
-    platformAgencyId: rep.agencyId,  // your id for their agency — joins it if known, creates it otherwise
+    platformAgencyId: rep.agencyId,  // your id for their agency — created earlier with POST /v1/agencies
   }),
 });
 const body = await r.json();
@@ -178,41 +258,13 @@ stop when `nextCursor` is `null`, and never parse a cursor. `GET /v1/agents` and
 [`GET /v1/calls`](/backend/reading-calls) return the same `{ data, nextCursor }` envelope, so one
 pager loop serves both.
 
-## Update an agency — `PATCH /v1/agencies/:agencyId`
-
-Rename an agency and/or set your own id on it. Send only what you are changing; at least one field
-is required, and `null` is treated as omitted.
-
-<TypeTable
-  type={{
-    name: { type: 'string' },
-    platformAgencyId: {
-      type: 'string',
-      description: 'Your own id for the agency. Unique within your account; may not begin with athos_agent_ or athos_agency_.',
-    },
-  }}
-/>
-
-```bash
-curl -X PATCH https://app.useathos.ai/api/external/v1/agencies/athos_agency_V1StGXR8Z5jdHi6B-myT \
-  -H "Authorization: Bearer $ATHOS_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Acme Senior Solutions"}'
-```
-
-**Response** `200 OK` — the updated agency object. An agency that is not yours answers
-`404 AGENCY_NOT_FOUND`; a `platformAgencyId` already on another of your agencies answers
-`400 INVALID_REQUEST`.
-
-An agency created at a registration that sent no `platformAgencyId` has none; this is how it gets
-one.
-
 ## What you cannot change (v1)
 
 An agent's handles and agency are fixed at registration: there is no endpoint to update an agent, move
 one to another agency, or remove one. A second `POST /v1/agents` for the same person is the `409`
 above, never an update. If a rep's email, NPN or agency changes, ask your Athos contact. An agency's
-`name` and `platformAgencyId` are the only roster fields you can change yourself (`PATCH` above).
+`name` is the only roster field you can change yourself — by POSTing to `/v1/agencies` again with the
+same `platformAgencyId`. The `platformAgencyId` itself is the agency's key and cannot be changed.
 
 ## Your own ids
 
@@ -226,9 +278,8 @@ value is a `400 INVALID_REQUEST`. Two rules:
 - Neither may begin with `athos_agent_` or `athos_agency_` — those are Athos ids. That is a
   `400 INVALID_REQUEST` everywhere.
 - Each is **unique within your account**. A `platformAgentId` already registered answers
-  `409 AGENT_ALREADY_EXISTS`. A `platformAgencyId` you already registered **joins** that agency at
-  registration; only `PATCH /v1/agencies/:agencyId` with another agency's value is
-  `400 INVALID_REQUEST`.
+  `409 AGENT_ALREADY_EXISTS`. A `platformAgencyId` you already created **updates** that agency on
+  `POST /v1/agencies` and **joins** it on `POST /v1/agents` — it is never an error.
 
 The id you register a rep under is also what attributes their real calls — see
 [Register your reps first](/backend/real-call-analysis#register-your-reps-first).

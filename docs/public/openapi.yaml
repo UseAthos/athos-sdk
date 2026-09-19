@@ -27,7 +27,7 @@ servers:
 
 tags:
   - name: Roster
-    description: Register and look up your agents; rename your agencies.
+    description: Create your agencies, then register and look up your agents.
   - name: Sessions
     description: Mint and redeem roleplay sessions.
   - name: Calls
@@ -338,18 +338,77 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /agencies:
+    post:
+      tags: [Roster]
+      summary: Create or update an agency
+      operationId: upsertAgency
+      description: |
+        Called by **your backend**. Creates an agency under your own `platformAgencyId`, or — if
+        one of your agencies already carries that id — renames it. Both fields are required, and
+        this is the **first roster call** for every agency: `POST /agents` adds reps to an agency
+        that already exists and never creates one.
+
+        `201` when the agency was created, `200` when an existing one was updated; the body is
+        the same `Agency` object either way, so a repeat POST is a safe way to keep the name in
+        sync. Two concurrent first POSTs for one `platformAgencyId` resolve to one agency. Ids
+        are scoped to your account — another partner's agencies are invisible, so there is no
+        `404` on this endpoint.
+
+        Server-to-server only (no CORS).
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertAgencyRequest"
+            example:
+              platformAgencyId: "acme-7731"
+              name: "Acme Senior Solutions"
+      responses:
+        "201":
+          description: The agency was created.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+        "200":
+          description: An agency of yours already carried that `platformAgencyId`; its `name` is updated.
+          headers:
+            X-Athos-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agency"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /agents:
     post:
       tags: [Roster]
       summary: Register an agent
       operationId: registerAgent
       description: |
-        Called by **your backend**. Registers a rep with a name and at least one handle — `npn`,
-        `email` or your own `platformAgentId`. With no `agencyId` the agent is placed in a **new
-        agency named after them**, and both records come back; pass an existing `agencyId` to add
-        the agent to that agency instead. Sending your own `platformAgencyId` works on every rep:
-        if one of your agencies already carries it the agent joins that agency, otherwise the new
-        agency is created with it.
+        Called by **your backend**. Registers a rep with a name, at least one handle — `npn`,
+        `email` or your own `platformAgentId` — and the agency they belong to, named by
+        **exactly one** of `platformAgencyId` (your id, the one you created the agency with) or
+        `agencyId` (the Athos id `POST /agencies` returned). Both records come back.
+
+        The agency must already exist: registration never creates one. Neither agency field is
+        `400 INVALID_REQUEST` (create it first with `POST /agencies`), both is `400`, and an id
+        that is not one of your agencies is `404 AGENCY_NOT_FOUND`.
 
         A rep already registered under any handle you sent answers `409 AGENT_ALREADY_EXISTS`,
         with the existing ids in `error.details`, rather than silently returning them.
@@ -364,16 +423,16 @@ paths:
             schema:
               $ref: "#/components/schemas/RegisterAgentRequest"
             examples:
-              newAgency:
-                summary: First rep — the agency is created for you
+              byPlatformAgencyId:
+                summary: Into the agency by your own id
                 value:
                   firstName: "Dana"
                   lastName: "Reyes"
                   email: "dana@acme.test"
                   platformAgentId: "rep_8842"
                   platformAgencyId: "acme-7731"
-              existingAgency:
-                summary: Another rep in that agency
+              byAgencyId:
+                summary: Into the agency by its Athos id
                 value:
                   firstName: "Sam"
                   lastName: "Ortiz"
@@ -474,55 +533,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListAgentsResponse"
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/AgencyNotFound"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /agencies/{agencyId}:
-    patch:
-      tags: [Roster]
-      summary: Update an agency
-      operationId: updateAgency
-      description: |
-        Called by **your backend**. Rename an agency and/or set your own `platformAgencyId` on it —
-        the way an agency that was created for you at a rep's registration gets your id. Send only
-        the fields you are changing; at least one is required.
-
-        An agency belonging to a different tenant returns `404 AGENCY_NOT_FOUND`. Server-to-server
-        only (no CORS).
-      security:
-        - ApiKeyAuth: []
-      parameters:
-        - name: agencyId
-          in: path
-          required: true
-          description: The Athos agency id (`athos_agency_…`).
-          schema:
-            type: string
-          example: "athos_agency_V1StGXR8Z5jdHi6B-myT"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAgencyRequest"
-      responses:
-        "200":
-          description: The updated agency.
-          headers:
-            X-Athos-Request-Id:
-              $ref: "#/components/headers/RequestId"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Agency"
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "401":
@@ -1201,9 +1211,8 @@ components:
       description: >-
         Your own id for the record. Must not begin with `athos_agent_` or `athos_agency_` — those
         are Athos ids. Each is unique within your account: a `platformAgentId` already registered
-        is `409 AGENT_ALREADY_EXISTS`; a `platformAgencyId` you already registered **joins** that
-        agency at registration, and only `PATCH /agencies/{agencyId}` refuses another agency's
-        value (`400 INVALID_REQUEST`).
+        is `409 AGENT_ALREADY_EXISTS`; a `platformAgencyId` you already created **updates** that
+        agency on `POST /agencies` and **joins** it on `POST /agents`.
 
     Agent:
       type: object
@@ -1241,10 +1250,12 @@ components:
           description: The Athos agency id (`athos_agency_…`). Store it.
         name:
           type: string
-          description: Defaults to the first registered rep's full name. Rename with `PATCH /agencies/{agencyId}`.
+          description: The name you gave it on `POST /agencies`. Rename it by POSTing again with the same `platformAgencyId`.
         platformAgencyId:
           type: [string, "null"]
-          description: Your own id for the agency, or `null` if you never set one.
+          description: >-
+            Your own id for the agency, as sent to `POST /agencies`. `null` only on an agency
+            created before this endpoint existed.
         createdAt:
           type: string
           format: date-time
@@ -1253,10 +1264,13 @@ components:
       type: object
       required: [firstName, lastName]
       description: >-
-        At least one of `npn`, `email` or `platformAgentId` is required. `agencyId` and
-        `platformAgencyId` may not be sent together. For every optional field, send it or omit it —
-        `null` is treated as omitted. Leading and trailing whitespace is removed from every string
-        field before validation and storage.
+        At least one of `npn`, `email` or `platformAgentId` is required, and **exactly one** of
+        `agencyId` or `platformAgencyId` — neither or both is `400 INVALID_REQUEST`. For every
+        optional field, send it or omit it — `null` is treated as omitted. Leading and trailing
+        whitespace is removed from every string field before validation and storage.
+      oneOf:
+        - required: [agencyId]
+        - required: [platformAgencyId]
       properties:
         firstName:
           type: string
@@ -1279,13 +1293,16 @@ components:
           type: string
           minLength: 1
           maxLength: 200
-          description: Put the agent in this existing agency instead of creating one.
+          description: >-
+            The agency's Athos id (`athos_agency_…`), as `POST /agencies` returned it. Not one of
+            yours is `404 AGENCY_NOT_FOUND`. Not together with `platformAgencyId`.
         platformAgencyId:
           allOf:
             - $ref: "#/components/schemas/PlatformSuppliedId"
           description: >-
-            Your own id for the agency. If one of your agencies already carries it the agent joins
-            that agency; otherwise the new agency is created with it.
+            Your own id for the agency, as you created it with `POST /agencies`. An id you have
+            not created is `404 AGENCY_NOT_FOUND` — the agent is never placed in a new agency.
+            Not together with `agencyId`.
 
     RegisterAgentResponse:
       type: object
@@ -1308,15 +1325,21 @@ components:
           type: [string, "null"]
           description: Pass as `cursor` to fetch the next page. `null` on the last page.
 
-    UpdateAgencyRequest:
+    UpsertAgencyRequest:
       type: object
+      required: [platformAgencyId, name]
       description: >-
-        At least one of `name` or `platformAgencyId` is required. Send a field or omit it — `null`
-        is treated as omitted.
+        Both fields are required; `null` is treated as omitted (and therefore missing). Leading
+        and trailing whitespace is removed from both before validation and storage.
       properties:
+        platformAgencyId:
+          allOf:
+            - $ref: "#/components/schemas/PlatformSuppliedId"
+          description: >-
+            Your own id for the agency — the key. The same value creates the agency on the first
+            POST and updates it on every later one.
         name:
           type: string
           minLength: 1
           maxLength: 200
-        platformAgencyId:
-          $ref: "#/components/schemas/PlatformSuppliedId"
+          description: The agency's display name. Athos staff see it too, so make it human-readable.

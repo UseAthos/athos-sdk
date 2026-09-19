@@ -37,18 +37,21 @@ codes that document one (today `AGENT_ALREADY_EXISTS`); treat it as absent other
 | `TENANT_QUOTA_EXCEEDED` | 403 | Your tenant's monthly usage allowance is spent. Not retryable: it clears at the start of the next calendar month, or when Athos raises the allowance. |
 | `CALL_NOT_FOUND` | 404 | No such call for your tenant (also returned for another tenant's call). |
 | `AGENT_NOT_FOUND` | 404 | No agent of yours is registered under that id — the id you minted with, or the `agentId` you filtered `GET /v1/calls` by. Register the rep first, or resolve an NPN or email to an id with `GET /v1/agents`. |
-| `AGENCY_NOT_FOUND` | 404 | No such agency for your tenant (also returned for another tenant's agency) — on `PATCH /v1/agencies/:agencyId`, `GET /v1/agents?agencyId=` and `GET /v1/calls?agencyId=`. Check the `agencyId` you stored. |
+| `AGENCY_NOT_FOUND` | 404 | No such agency for your tenant (also returned for another tenant's agency) — the `agencyId` / `platformAgencyId` on `POST /v1/agents`, `GET /v1/agents?agencyId=` and `GET /v1/calls?agencyId=`. Create the agency with `POST /v1/agencies` first, or check the id you stored. |
 | `AGENT_ALREADY_EXISTS` | 409 | A rep is already registered under one of the handles you sent. `details` carries `{ agentId, agencyId, matchedOn }` — use those ids instead of retrying. |
 | `INTERNAL_ERROR` | 500 | An unexpected error. Retry; if it persists, contact Athos with the `requestId`. |
 | `SERVICE_UNAVAILABLE` | 503 | No persona is available for the drill right now. Transient, but the attempt spent the session token — see below. |
 
 ## Which codes you'll see where
 
-- **`POST /v1/agents`**, **`GET /v1/agents`** and **`PATCH /v1/agencies/:agencyId`** (roster):
-  `INVALID_REQUEST` (validation, more than one lookup handle on `GET /v1/agents`, a `limit` outside
-  1–100, a bad `cursor`), `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`,
-  `AGENCY_NOT_FOUND` (an `agencyId` that is not yours), and `AGENT_ALREADY_EXISTS` (register only). A
-  lookup that matches nobody is a `200` with an empty `data`, never an error.
+- **`POST /v1/agencies`**, **`POST /v1/agents`** and **`GET /v1/agents`** (roster):
+  `INVALID_REQUEST` (validation — including a registration that names no agency, or names it both
+  ways; more than one lookup handle on `GET /v1/agents`; a `limit` outside 1–100; a bad `cursor`),
+  `INVALID_API_KEY`, `API_KEY_REVOKED`, `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, `AGENCY_NOT_FOUND` (an
+  `agencyId` or `platformAgencyId` that is not one of your agencies — on `POST /v1/agents` and
+  `GET /v1/agents?agencyId=`; `POST /v1/agencies` never answers it, an unknown id is a create), and
+  `AGENT_ALREADY_EXISTS` (register only). A lookup that matches nobody is a `200` with an empty
+  `data`, never an error.
 - **`POST /v1/session`** (mint): `INVALID_REQUEST`, `INVALID_API_KEY`, `API_KEY_REVOKED`,
   `TENANT_INACTIVE`, `IP_NOT_ALLOWED`, `TENANT_QUOTA_EXCEEDED` (no token is issued; not retryable
   until the allowance resets), `AGENT_NOT_FOUND` (the id is not a registered rep's `platformAgentId`

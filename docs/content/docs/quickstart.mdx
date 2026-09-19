@@ -3,8 +3,8 @@ title: Quickstart
 description: From your credentials to a live, scored roleplay call in about 15 minutes.
 ---
 
-This walks through the entire loop: register a rep, mint a token, start a live call from the
-browser, receive the `call.scored` webhook, and read the score. Every REST call is server-to-server —
+This walks through the entire loop: create an agency, register a rep into it, mint a token, start a
+live call from the browser, receive the `call.scored` webhook, and read the score. Every REST call is server-to-server —
 keep your API key on your backend.
 
 <Callout type="info">
@@ -39,8 +39,26 @@ secrets server-side — the API key never goes near a browser.
   [Registering your endpoint](/backend/webhooks#registering-your-endpoint).
 
   Your key is a live key: every call runs against the real service and is billed. Keep test data
-  apart by registering test reps under a dedicated `platformAgencyId`.
+  apart by creating a dedicated test agency and registering test reps into it.
 </Callout>
+
+</Step>
+
+<Step>
+
+### Create the agency (backend, once per customer)
+
+An **agency** is one of your customers — a group of reps. Create it under **your own id** for it
+before you register its first rep. The same call renames it later (`200` instead of `201`), so it
+is safe to repeat.
+
+```bash
+curl -X POST https://app.useathos.ai/api/external/v1/agencies \
+  -H "Authorization: Bearer $ATHOS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"platformAgencyId":"acme-7731","name":"Acme Senior Solutions"}'
+# → 201 { "id": "athos_agency_…", "name": "Acme Senior Solutions", "platformAgencyId": "acme-7731", … }
+```
 
 </Step>
 
@@ -49,9 +67,8 @@ secrets server-side — the API key never goes near a browser.
 ### Register the rep (backend, once per person)
 
 A session token is only minted for a **registered agent**, so register each rep once — with your
-own id for them — before their first practice call. An **agency** (one of your customers — a group
-of reps) is created for them automatically, named after the rep; rename it any time with
-[`PATCH /v1/agencies/:agencyId`](/backend/managing-agencies-and-agents#update-an-agency--patch-v1agenciesagencyid).
+own id for them, into the agency you just created — before their first practice call. Registration
+never creates an agency: a `platformAgencyId` you have not created is `404 AGENCY_NOT_FOUND`.
 
 ```bash
 curl -X POST https://app.useathos.ai/api/external/v1/agents \
