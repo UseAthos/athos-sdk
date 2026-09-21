@@ -95,7 +95,7 @@ Twenty-one drills across six product lines, keyed `<line>-<practice>`:
 | Hospital Indemnity | `hi-downsell`, `hi-upsell`, `hi-crosssell` |
 | Critical Illness | `ci-downsell`, `ci-upsell`, `ci-crosssell` |
 
-What each one is, and which three start mid-call, is on the
+What each one is, and which four start mid-call, is on the
 [Drills reference](https://docs.useathos.ai/reference/drills). The catalog is append-only.
 
 ## Events
