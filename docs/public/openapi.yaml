@@ -962,11 +962,12 @@ components:
         drillKey:
           type: string
           description: >-
-            The drill to practice. Two drills are available today: `ma-full-sale` (Medicare
-            Advantage — full enrollment) and `fe-full-sale` (Final Expense — full sale). The
-            catalog is append-only and deliberately not an enum, so a newly added key works without
-            regenerating your client. See the Drills reference for the catalog.
-          examples: ["ma-full-sale", "fe-full-sale"]
+            The drill to practice, e.g. `ma-full-sale` (Medicare Advantage — full enrollment),
+            `ma-t65`, `fe-closing`, `hi-crosssell`. Twenty-one drills across Medicare Advantage,
+            Medicare Supplement, Final Expense, under-65 health, Hospital Indemnity and Critical
+            Illness. The catalog is append-only and deliberately not an enum, so a newly added key
+            works without regenerating your client. See the Drills reference for the catalog.
+          examples: ["ma-full-sale", "ma-t65", "fe-closing", "hi-crosssell"]
         filters:
           type: object
           description: >-
@@ -1174,8 +1175,9 @@ components:
           additionalProperties: true
           description: >
             The compliance scorecard for the call, section by section. **Optional** — on practice
-            calls present only on Medicare Advantage drills that ran at least five minutes; on a
-            `real_call` present when the call was assessed for compliance. The key is absent, not
+            calls present only on the two Medicare Advantage enrollment drills (`ma-full-sale`,
+            `ma-t65`) when the call ran at least five minutes; on a `real_call` present when the
+            call was assessed for compliance. The key is absent, not
             null, when there is none. Section contents are graded content and may gain items over
             time; `totalScore` is the one fixed field.
           properties:

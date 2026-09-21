@@ -80,12 +80,23 @@ For compile-time checking and autocomplete, the available catalog is exported as
 ```ts
 import { ATHOS_DRILL_KEYS, type AthosDrillKey } from "@useathos/sdk";
 
-const drillKey: AthosDrillKey = "ma-full-sale"; // opt-in: typos fail to compile
-ATHOS_DRILL_KEYS; // ["ma-full-sale", "fe-full-sale"]
+const drillKey: AthosDrillKey = "fe-closing"; // opt-in: typos fail to compile
+ATHOS_DRILL_KEYS; // ["ma-full-sale", "ma-t65", …, "ci-crosssell"] — 21 keys
 ```
 
-Two drills are available today — `ma-full-sale` (Medicare Advantage — full enrollment) and
-`fe-full-sale` (Final Expense — full sale). The catalog is append-only.
+Twenty-one drills across six product lines, keyed `<line>-<practice>`:
+
+| Line | Keys |
+| --- | --- |
+| Medicare Advantage | `ma-full-sale`, `ma-t65`, `ma-objection-handling`, `ma-needs-analysis`, `ma-plan-presentation`, `ma-sep-hunting`, `ma-hhc`, `ma-hhc-downsell`, `ma-hhc-crosssell`, `ma-hhc-upsell` |
+| Medicare Supplement | `ms-full-sale` |
+| Final Expense | `fe-full-sale`, `fe-objection-handling`, `fe-closing` |
+| Under-65 private health | `u65-full-sale` |
+| Hospital Indemnity | `hi-downsell`, `hi-upsell`, `hi-crosssell` |
+| Critical Illness | `ci-downsell`, `ci-upsell`, `ci-crosssell` |
+
+What each one is, and which three start mid-call, is on the
+[Drills reference](https://docs.useathos.ai/reference/drills). The catalog is append-only.
 
 ## Events
 

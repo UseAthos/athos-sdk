@@ -15,14 +15,36 @@ describe("public surface", () => {
     }
   });
 
-  it("pins the launch drill catalog exactly", () => {
+  it("pins the drill catalog exactly", () => {
     // EXACT, not `toContain`: a bogus extra key would satisfy per-key assertions
     // while a picker built from this list offers a drill the server rejects with
     // DRILL_NOT_FOUND. The server half of this pair lives in the product repo's
     // lib/external/drill-key-map.ts and pins the same sorted literal in its own
     // contract test; keep them in sync in one paired PR (D-03). Append-only: a
     // key may be added here (and to this assertion), never removed.
-    expect([...ATHOS_DRILL_KEYS].sort()).toEqual(["fe-full-sale", "ma-full-sale"]);
+    expect([...ATHOS_DRILL_KEYS].sort()).toEqual([
+      "ci-crosssell",
+      "ci-downsell",
+      "ci-upsell",
+      "fe-closing",
+      "fe-full-sale",
+      "fe-objection-handling",
+      "hi-crosssell",
+      "hi-downsell",
+      "hi-upsell",
+      "ma-full-sale",
+      "ma-hhc",
+      "ma-hhc-crosssell",
+      "ma-hhc-downsell",
+      "ma-hhc-upsell",
+      "ma-needs-analysis",
+      "ma-objection-handling",
+      "ma-plan-presentation",
+      "ma-sep-hunting",
+      "ma-t65",
+      "ms-full-sale",
+      "u65-full-sale",
+    ]);
   });
 
   it("freezes the exported catalog", () => {

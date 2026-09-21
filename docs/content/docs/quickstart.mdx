@@ -130,9 +130,10 @@ npm install @useathos/sdk
   browser withholds the microphone. See [Requirements](/sdk#requirements).
 </Callout>
 
-`drillKey` picks the scenario: `ma-full-sale` (Medicare Advantage) or `fe-full-sale` (Final
-Expense) — see [Drills](/reference/drills). `create()` is synchronous, so register handlers
-**before** `connect()` — nothing is missed.
+`drillKey` picks the scenario — `ma-full-sale` here is a full Medicare Advantage enrollment; the
+catalog covers Medicare Advantage, Medicare Supplement, Final Expense, under-65 health, Hospital
+Indemnity and Critical Illness, see [Drills](/reference/drills). `create()` is synchronous, so
+register handlers **before** `connect()` — nothing is missed.
 
 ```ts
 import { AthosRoleplay } from '@useathos/sdk';

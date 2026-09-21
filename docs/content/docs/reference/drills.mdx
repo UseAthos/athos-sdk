@@ -8,14 +8,70 @@ A **drill** is the scenario your rep practices. You pass its key as `drillKey` t
 
 ## Available drills
 
+Keys are `<line>-<practice>`: `ma` Medicare Advantage, `ms` Medicare Supplement, `fe` Final
+Expense, `u65` under-65 private health, `hi` Hospital Indemnity, `ci` Critical Illness.
+
+### Medicare Advantage
+
 | `drillKey` | Scenario |
 | --- | --- |
-| `ma-full-sale` | **Medicare Advantage — full enrollment.** Practice a complete MA sale, intro to close. |
-| `fe-full-sale` | **Final Expense — full sale.** Practice a complete final-expense sale, intro to close. |
+| `ma-full-sale` | **Full enrollment.** A complete Medicare Advantage enrollment call, intro to close. Scored for skill and for CMS compliance — see [`complianceScorecard`](/backend/reading-calls#the-score-object). |
+| `ma-t65` | **Turning 65.** Enroll a beneficiary going onto Medicare for the first time — they have never had a plan and will ask the rep to explain everything. Same enrollment ground and compliance scoring as `ma-full-sale`. |
+| `ma-objection-handling` | **Objection handling.** Handle live Medicare Advantage objections from a prospect. |
+| `ma-needs-analysis` | **Needs analysis.** Conduct a full needs analysis with a Medicare Advantage prospect. |
+| `ma-plan-presentation` | **Plan presentation.** Present a plan to a Medicare Advantage prospect. |
+| `ma-sep-hunting` | **SEP hunting.** Identify a valid Special Enrollment Period with a Medicare prospect. |
+| `ma-hhc` | **Home Health Care — full sale.** The whole call: take a vague inbound enquiry, uncover the need, and enroll the beneficiary in home health care. |
+| `ma-hhc-downsell` | **Home Health Care — downsell.** Pivot to home health care when there is no Medicare Advantage sale to be made. *Starts mid-call.* |
+| `ma-hhc-crosssell` | **Home Health Care — cross-sell.** The MA application is submitted and the client thinks the call is over; open a separate home-health policy without it sounding like part of the plan just enrolled. *Starts mid-call.* |
+| `ma-hhc-upsell` | **Home Health Care — upsell.** Create an opening on a routine check-in with a happy client who has no reason to buy anything. *Starts mid-call.* |
+
+### Medicare Supplement
+
+| `drillKey` | Scenario |
+| --- | --- |
+| `ms-full-sale` | **Full sale.** Shop a beneficiary's current Medigap plan against other carriers. |
+
+### Final Expense
+
+| `drillKey` | Scenario |
+| --- | --- |
+| `fe-full-sale` | **Full sale.** A complete final-expense pitch call, intro to close. |
+| `fe-objection-handling` | **Objection handling.** Field Final-Expense-specific objections at the payment, underwriting and decision-maker stages. |
+| `fe-closing` | **Closing.** The closing half of a Final Expense sale — price bracketing, waiting-period explanation, SSN/bank collection, and verification recovery. |
+
+### Under-65 private health
+
+| `drillKey` | Scenario |
+| --- | --- |
+| `u65-full-sale` | **Full sale.** Sell private health insurance to an under-65 client. |
+
+### Hospital Indemnity
+
+| `drillKey` | Scenario |
+| --- | --- |
+| `hi-downsell` | **Downsell.** Pivot to hospital indemnity when there is no Medicare Advantage sale to be made. |
+| `hi-upsell` | **Upsell.** Cross-sell hospital indemnity during a routine check-in or retention call. |
+| `hi-crosssell` | **Cross-sell.** Introduce hospital indemnity while walking a client through their new Medicare Advantage plan. |
+
+### Critical Illness
+
+| `drillKey` | Scenario |
+| --- | --- |
+| `ci-downsell` | **Downsell.** Pivot to a critical illness plan when there is no Medicare Advantage sale to be made. |
+| `ci-upsell` | **Upsell.** Cross-sell critical illness coverage during a routine check-in or retention call. |
+| `ci-crosssell` | **Cross-sell.** Introduce critical illness coverage while walking a client through their new Medicare Advantage plan. |
 
 <Callout type="info">
   The catalog is **append-only**: keys are never renamed or removed, and a newly added key works
   without an SDK upgrade.
+</Callout>
+
+<Callout type="info">
+  **Three drills start mid-call.** `ma-hhc-downsell`, `ma-hhc-crosssell` and `ma-hhc-upsell`
+  open with the persona already at the moment the scenario is about — its first line is a
+  reaction to what has just happened, not a greeting. Tell the rep the setup before they
+  connect; the persona will not explain it.
 </Callout>
 
 ### Typed keys in the SDK (opt-in)
@@ -27,8 +83,8 @@ keys are static, or render a scenario picker from the runtime list:
 ```ts
 import { ATHOS_DRILL_KEYS, type AthosDrillKey } from '@useathos/sdk';
 
-ATHOS_DRILL_KEYS.forEach((key) => addOption(key)); // ['ma-full-sale', 'fe-full-sale']
-const drillKey: AthosDrillKey = 'fe-full-sale';    // opt-in compile-time check
+ATHOS_DRILL_KEYS.forEach((key) => addOption(key)); // ['ma-full-sale', 'ma-t65', …, 'ci-crosssell']
+const drillKey: AthosDrillKey = 'fe-closing';      // opt-in compile-time check
 ```
 
 ## Difficulty

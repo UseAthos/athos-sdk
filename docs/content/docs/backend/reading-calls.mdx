@@ -190,9 +190,10 @@ call, or when the analysis step did not complete, the call still scores but has 
 
 <Callout type="info">
   **`complianceScorecard` is optional — check for it, don't assume it.** On practice calls it appears
-  on Medicare Advantage drills only, and only when the call ran at least five minutes; a shorter MA
-  call and every Final Expense call omit the key. On a real call it appears only on a Medicare
-  Advantage call that ended in a sale — never on a Final Expense one. When there is none the key is
+  on the two Medicare Advantage enrollment drills only — `ma-full-sale` and `ma-t65` — and only
+  when the call ran at least five minutes; a shorter enrollment call and every other drill (the
+  other MA drills included) omit the key. On a real call it appears only on a Medicare Advantage
+  call that ended in a sale — never on a Final Expense one. When there is none the key is
   **absent**, not `null`. Its sections are
   graded content and may gain items over time — read `totalScore` and treat the rest as display
   detail. `totalScore` is itself omitted in the rare case where the underlying total is not a usable

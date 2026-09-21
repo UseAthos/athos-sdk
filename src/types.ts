@@ -15,7 +15,34 @@
  * Unknown keys are rejected by the server with `DRILL_NOT_FOUND`. Use this type
  * (and `ATHOS_DRILL_KEYS`) when you would rather have the compile-time check.
  */
-export type AthosDrillKey = "ma-full-sale" | "fe-full-sale";
+export type AthosDrillKey =
+  // Medicare Advantage
+  | "ma-full-sale"
+  | "ma-t65"
+  | "ma-objection-handling"
+  | "ma-needs-analysis"
+  | "ma-plan-presentation"
+  | "ma-sep-hunting"
+  | "ma-hhc"
+  | "ma-hhc-downsell"
+  | "ma-hhc-crosssell"
+  | "ma-hhc-upsell"
+  // Medicare Supplement
+  | "ms-full-sale"
+  // Final Expense
+  | "fe-full-sale"
+  | "fe-objection-handling"
+  | "fe-closing"
+  // ACA under 65
+  | "u65-full-sale"
+  // Hospital Indemnity
+  | "hi-downsell"
+  | "hi-upsell"
+  | "hi-crosssell"
+  // Critical Illness
+  | "ci-downsell"
+  | "ci-upsell"
+  | "ci-crosssell";
 
 /**
  * All available drill keys as a runtime list, e.g. for rendering a scenario
@@ -24,7 +51,26 @@ export type AthosDrillKey = "ma-full-sale" | "fe-full-sale";
  */
 export const ATHOS_DRILL_KEYS: readonly AthosDrillKey[] = Object.freeze([
   "ma-full-sale",
+  "ma-t65",
+  "ma-objection-handling",
+  "ma-needs-analysis",
+  "ma-plan-presentation",
+  "ma-sep-hunting",
+  "ma-hhc",
+  "ma-hhc-downsell",
+  "ma-hhc-crosssell",
+  "ma-hhc-upsell",
+  "ms-full-sale",
   "fe-full-sale",
+  "fe-objection-handling",
+  "fe-closing",
+  "u65-full-sale",
+  "hi-downsell",
+  "hi-upsell",
+  "hi-crosssell",
+  "ci-downsell",
+  "ci-upsell",
+  "ci-crosssell",
 ]);
 
 export interface AthosRoleplayCreateOptions {
@@ -34,7 +80,7 @@ export interface AthosRoleplayCreateOptions {
    */
   token: string;
   /**
-   * Which drill to practice, e.g. "ma-full-sale" or "fe-full-sale". Required.
+   * Which drill to practice, e.g. "ma-full-sale" or "fe-closing". Required.
    *
    * Deliberately `string`, not `AthosDrillKey` — a drill newly enabled on the
    * Athos side must work without upgrading this package. Unknown keys are
