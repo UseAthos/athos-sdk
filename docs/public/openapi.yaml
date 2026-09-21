@@ -1151,8 +1151,9 @@ components:
       required: [overallScore, summary, feedback]
       description: |
         The scored result of a call, practice or real. `overallScore`, `summary` and `feedback` are
-        always present; `complianceScorecard` is optional. `additionalProperties` is `true` because keys
-        can be added: read the fields you know and don't assume these are the only ones.
+        always present; `compliancePercent` and `complianceScorecard` are optional.
+        `additionalProperties` is `true` because keys can be added: read the fields you know and
+        don't assume these are the only ones.
       properties:
         overallScore:
           type: number
@@ -1170,27 +1171,42 @@ components:
           description: >-
             Coaching feedback for the rep. Always present, but **may be an empty string** on the
             same calls as `summary`.
+        compliancePercent:
+          type: number
+          description: >
+            How compliant the call was, as a percentage 0–100 (higher is better). **Optional** —
+            present whenever the call was assessed for compliance, and **absent, not null**, when it
+            was not. This is the number to compare across calls and to render: it is already a
+            percentage, so calls graded by the default Medicare rubric and calls graded by an
+            agency's own compliance scorecard are on the same scale.
+            `complianceScorecard.totalScore` is not.
         complianceScorecard:
           type: object
           additionalProperties: true
           description: >
-            The compliance scorecard for the call, section by section. **Optional** — on practice
+            The **default** Medicare compliance rubric's review of the call, section by section.
+            **Optional** — the conditions that follow describe that rubric's detail: on practice
             calls present only on the two Medicare Advantage enrollment drills (`ma-full-sale`,
             `ma-t65`) when the call ran at least five minutes; on a `real_call` present when the
-            call was assessed for compliance. The key is absent, not
-            null, when there is none. Section contents are graded content and may gain items over
-            time; `totalScore` is the one fixed field.
+            call was assessed against that rubric. The key is absent, not null, when there is none —
+            including for an agency graded by its **own** compliance scorecard, whose calls carry
+            `compliancePercent` with no `complianceScorecard`, because this blob is the default
+            rubric's detail and that rubric did not run. Section contents are graded content and may
+            gain items over time; `totalScore` is the one fixed field.
           properties:
             totalScore:
               type: number
               description: >
-                The call's compliance total (higher is better). Normally present; omitted in the
-                rare case where the underlying total is not a usable number. Treat an absent
-                `totalScore` as "not assessed", never as zero.
+                The call's compliance total on the reviewing rubric's **own point scale** (higher is
+                better) — **not a percentage**, and not comparable across scorecards. Read
+                `compliancePercent` for the percentage. Normally present; omitted in the rare case
+                where the underlying total is not a usable number. Treat an absent `totalScore` as
+                "not assessed", never as zero.
       example:
         overallScore: 82
         summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."
         feedback: "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+        compliancePercent: 85
         complianceScorecard:
           totalScore: 74
 

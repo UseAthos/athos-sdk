@@ -153,6 +153,7 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
     "overallScore": 82,
     "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
     "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan.",
+    "compliancePercent": 85,
     "complianceScorecard": { "totalScore": 74 }
   },
   "audioUrl": "https://…/athos_call_GZ1DjOkZv_VEPoE-CJ8mp.ogg?X-Amz-Expires=3600&X-Amz-Signature=…",
@@ -183,21 +184,30 @@ A flat list of turns, in the order they were spoken. The same shape for both sou
 | `overallScore` | number | Overall call performance, **0–100** (higher is better); on a `real_call` the scale runs **60–100**. `0` means no headline score could be produced. |
 | `summary` | string | A short natural-language summary of the call. |
 | `feedback` | string | Coaching feedback for the rep. |
-| `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, headed by a numeric `totalScore`. |
+| `compliancePercent` | number *(optional)* | How compliant the call was, as a percentage **0–100** (higher is better). Present whenever the call was assessed for compliance, whichever scorecard graded it. |
+| `complianceScorecard` | object *(optional)* | The **default** Medicare rubric's compliance review, section by section, headed by a `totalScore` on **that rubric's own point scale** — not a percentage. |
 
 `summary` and `feedback` are always present but either can be an **empty string** — on a very short
 call, or when the analysis step did not complete, the call still scores but has no prose.
 
 <Callout type="info">
+  **Two different fields.** `compliancePercent` answers *how compliant was this call* — a percentage
+  **0–100**, comparable across calls whichever scorecard graded them, and the one to render.
+  `complianceScorecard` is the **default** Medicare rubric's section-by-section detail, and its
+  `totalScore` is a raw total on that rubric's own point scale — **not** a percentage. A call can
+  carry `compliancePercent` on its own.
+
   **`complianceScorecard` is optional — check for it, don't assume it.** On practice calls it appears
   on the two Medicare Advantage enrollment drills only — `ma-full-sale` and `ma-t65` — and only
   when the call ran at least five minutes; a shorter enrollment call and every other drill (the
   other MA drills included) omit the key. On a real call it appears only on a Medicare Advantage
-  call that ended in a sale — never on a Final Expense one. When there is none the key is
-  **absent**, not `null`. Its sections are
-  graded content and may gain items over time — read `totalScore` and treat the rest as display
-  detail. `totalScore` is itself omitted in the rare case where the underlying total is not a usable
-  number; treat an absent `totalScore` as *not assessed*, never as zero.
+  call that ended in a sale — never on a Final Expense one. And an agency graded by **its own**
+  compliance scorecard rather than the default rubric carries `compliancePercent` with **no**
+  `complianceScorecard`, because this blob is the default rubric's detail and that rubric did not
+  run. When there is none the key is **absent**, not `null`. Its sections are
+  graded content and may gain items over time — read `compliancePercent` and treat the rest as
+  display detail. `totalScore` is itself omitted in the rare case where the underlying total is not a
+  usable number; treat an absent `totalScore` as *not assessed*, never as zero.
 </Callout>
 
 ## Recording playback

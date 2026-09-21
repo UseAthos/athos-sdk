@@ -57,8 +57,11 @@ Two more rules of attribution:
   list's `from` / `to` window and ordering use `startedAt`.
 - `transcript` turns carry `startTime` / `endTime` in seconds from the start of the call.
 - `score.overallScore` is 60–100 (`0` when no headline score could be produced).
-- `score.complianceScorecard` is present only on a **Medicare Advantage** call that ended in a
-  **sale**. A Final Expense real call never carries one.
+- `score.compliancePercent` — the 0–100 compliance percentage — is present whenever the call was
+  assessed for compliance. `score.complianceScorecard`, the default Medicare rubric's
+  section-by-section detail, is present only on a **Medicare Advantage** call that ended in a
+  **sale**: a Final Expense real call never carries one, and an agency graded by its own compliance
+  scorecard carries `compliancePercent` with no `complianceScorecard`.
 - `audioUrl` is a short-lived signed link to Athos's own archived copy of the dialer recording
   (with `audioUrlExpiresAt`), or `null` when no archive exists — never the dialer's own URL.
   **Archived recordings are kept for 30 days.** After that the call still reads normally, with
@@ -68,9 +71,9 @@ Two more rules of attribution:
   registered — fires nothing at all. A call that was persisted but could not be scored arrives as
   `success: false`.
 - A real call can be **re-dispositioned** — the dialer changes the call's recorded outcome (a sale,
-  a callback, …) after the fact. That can change `score` (including `complianceScorecard`) and
-  `scoredAt` **without a new `call.scored` delivery** — re-read real calls on a schedule if you
-  cache them.
+  a callback, …) after the fact. That can change `score` (including `compliancePercent` and
+  `complianceScorecard`) and `scoredAt` **without a new `call.scored` delivery** — re-read real
+  calls on a schedule if you cache them.
 
 Everything else — the ids, verifying the webhook signature, paging, reading the `score` object — is
 identical to practice calls. See [Webhooks](/backend/webhooks) and
