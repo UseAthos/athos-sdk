@@ -64,10 +64,12 @@ Every timestamp in the API and the webhook is ISO 8601 in **UTC** (`2026-06-05T1
 
 ## Drills and personas
 
-A **drill** is the scenario a rep practices — `ma-full-sale` (Medicare Advantage) or
-`fe-full-sale` (Final Expense). You pass its key as `drillKey` when you create a session. A
-**persona** is the AI customer the rep talks to on that call; Athos picks one for the drill, and
-you can nudge the choice with `difficulty` and `filters`. See [Drills](/reference/drills).
+A **drill** is the scenario a rep practices — a full Medicare Advantage enrollment
+(`ma-full-sale`), a Final Expense close (`fe-closing`), a Hospital Indemnity cross-sell
+(`hi-crosssell`), and so on across six product lines. You pass its key as `drillKey` when you
+create a session. A **persona** is the AI customer the rep talks to on that call; Athos picks one
+for the drill, and you can nudge the choice with `difficulty` and `filters`. The full catalog is
+on [Drills](/reference/drills).
 
 ## The call lifecycle
 
