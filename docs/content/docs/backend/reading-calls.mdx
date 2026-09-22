@@ -153,7 +153,27 @@ curl https://app.useathos.ai/api/external/v1/calls/athos_call_GZ1DjOkZv_VEPoE-CJ
     "overallScore": 82,
     "summary": "Prospect asked about Medicare options; the agent built rapport but rushed the close.",
     "feedback": "Lead with a clear greeting and one discovery question; slow down before presenting the plan.",
-    "complianceScorecard": { "totalScore": 74 }
+    "compliancePercent": 85,
+    "complianceScorecard": {
+      "requiredCallOpening": {
+        "statedNameAndAgency": {
+          "yesNo": "yes",
+          "score": 5,
+          "explanation": "The agent gave their name and the agency in the first ten seconds."
+        },
+        "statedCallIsRecorded": {
+          "yesNo": "yes",
+          "score": 3,
+          "explanation": "The agent said the call was recorded before asking any questions."
+        }
+      },
+      "scopeOfAppointment": {
+        "confirmedProductsToDiscuss": {
+          "yesNo": "no",
+          "explanation": "The agent moved into the plan comparison without confirming the scope on file."
+        }
+      }
+    }
   },
   "audioUrl": "https://…/athos_call_GZ1DjOkZv_VEPoE-CJ8mp.ogg?X-Amz-Expires=3600&X-Amz-Signature=…",
   "audioUrlExpiresAt": "2026-06-05T15:50:29.005Z",
@@ -183,21 +203,28 @@ A flat list of turns, in the order they were spoken. The same shape for both sou
 | `overallScore` | number | Overall call performance, **0–100** (higher is better); on a `real_call` the scale runs **60–100**. `0` means no headline score could be produced. |
 | `summary` | string | A short natural-language summary of the call. |
 | `feedback` | string | Coaching feedback for the rep. |
-| `complianceScorecard` | object *(optional)* | The call's compliance review, section by section, headed by a numeric `totalScore`. |
+| `compliancePercent` | number *(optional)* | **How compliant the call was** — **0–100** (higher is better), comparable across calls whichever scorecard graded them. Present whenever the call was assessed for compliance. |
+| `complianceScorecard` | object *(optional)* | The **default** Medicare rubric's compliance review, section by section — the graded items and their per-item detail. No total; read `compliancePercent` for the number. |
 
 `summary` and `feedback` are always present but either can be an **empty string** — on a very short
 call, or when the analysis step did not complete, the call still scores but has no prose.
 
 <Callout type="info">
+  **`compliancePercent` is the compliance number.** It answers *how compliant was this call* —
+  **0–100**, comparable across calls whichever scorecard graded them, and the one to render and to
+  compare. `complianceScorecard` is the **default** Medicare rubric's section-by-section detail —
+  the graded items, not a total. A call can carry `compliancePercent` on its own.
+
   **`complianceScorecard` is optional — check for it, don't assume it.** On practice calls it appears
   on the two Medicare Advantage enrollment drills only — `ma-full-sale` and `ma-t65` — and only
   when the call ran at least five minutes; a shorter enrollment call and every other drill (the
   other MA drills included) omit the key. On a real call it appears only on a Medicare Advantage
-  call that ended in a sale — never on a Final Expense one. When there is none the key is
-  **absent**, not `null`. Its sections are
-  graded content and may gain items over time — read `totalScore` and treat the rest as display
-  detail. `totalScore` is itself omitted in the rare case where the underlying total is not a usable
-  number; treat an absent `totalScore` as *not assessed*, never as zero.
+  call that ended in a sale — never on a Final Expense one. And an agency graded by **its own**
+  compliance scorecard rather than the default rubric carries `compliancePercent` with **no**
+  `complianceScorecard`, because this blob is the default rubric's detail and that rubric did not
+  run. When there is none the key is **absent**, not `null`. Its sections are
+  graded content and may gain items over time — read `compliancePercent` for the number and treat
+  the sections as display detail.
 </Callout>
 
 ## Recording playback

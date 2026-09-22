@@ -1151,8 +1151,9 @@ components:
       required: [overallScore, summary, feedback]
       description: |
         The scored result of a call, practice or real. `overallScore`, `summary` and `feedback` are
-        always present; `complianceScorecard` is optional. `additionalProperties` is `true` because keys
-        can be added: read the fields you know and don't assume these are the only ones.
+        always present; `compliancePercent` and `complianceScorecard` are optional.
+        `additionalProperties` is `true` because keys can be added: read the fields you know and
+        don't assume these are the only ones.
       properties:
         overallScore:
           type: number
@@ -1170,29 +1171,47 @@ components:
           description: >-
             Coaching feedback for the rep. Always present, but **may be an empty string** on the
             same calls as `summary`.
+        compliancePercent:
+          type: number
+          description: >
+            The call's compliance result, 0–100 (higher is better) — **the** compliance number for
+            the call. It is already a percentage, so it is comparable across calls whichever
+            scorecard graded them: the default Medicare rubric or an agency's own. **Optional** —
+            present whenever the call was assessed for compliance, and **absent, not null**, when it
+            was not.
         complianceScorecard:
           type: object
           additionalProperties: true
           description: >
-            The compliance scorecard for the call, section by section. **Optional** — on practice
-            calls present only on the two Medicare Advantage enrollment drills (`ma-full-sale`,
-            `ma-t65`) when the call ran at least five minutes; on a `real_call` present when the
-            call was assessed for compliance. The key is absent, not
-            null, when there is none. Section contents are graded content and may gain items over
-            time; `totalScore` is the one fixed field.
-          properties:
-            totalScore:
-              type: number
-              description: >
-                The call's compliance total (higher is better). Normally present; omitted in the
-                rare case where the underlying total is not a usable number. Treat an absent
-                `totalScore` as "not assessed", never as zero.
+            The **default** Medicare compliance rubric's section-by-section review of the call: the
+            graded items themselves, each with its own per-item detail, and **no total**. Read
+            `compliancePercent` for the call's compliance number. **Optional** — the conditions that
+            follow describe that rubric's detail: on practice calls present only on the two Medicare
+            Advantage enrollment drills (`ma-full-sale`, `ma-t65`) when the call ran at least five
+            minutes; on a `real_call` present when the call was assessed against that rubric. The
+            key is absent, not null, when there is none — including for an agency graded by its
+            **own** compliance scorecard, whose calls carry `compliancePercent` with no
+            `complianceScorecard`, because this blob is the default rubric's detail and that rubric
+            did not run. Section contents are graded content and may gain items over time.
       example:
         overallScore: 82
         summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."
         feedback: "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
+        compliancePercent: 85
         complianceScorecard:
-          totalScore: 74
+          requiredCallOpening:
+            statedNameAndAgency:
+              yesNo: "yes"
+              score: 5
+              explanation: "The agent gave their name and the agency in the first ten seconds."
+            statedCallIsRecorded:
+              yesNo: "yes"
+              score: 3
+              explanation: "The agent said the call was recorded before asking any questions."
+          scopeOfAppointment:
+            confirmedProductsToDiscuss:
+              yesNo: "no"
+              explanation: "The agent moved into the plan comparison without confirming the scope on file."
 
     ListCallsResponse:
       type: object
