@@ -59,7 +59,8 @@ Two more rules of attribution:
 - `score.overallScore` is 60–100 (`0` when no headline score could be produced).
 - `score.compliancePercent` — the 0–100 compliance percentage — is present whenever the call was
   assessed for compliance. `score.complianceScorecard`, the default Medicare rubric's
-  section-by-section detail, is present only on a **Medicare Advantage** call that ended in a
+  category-by-category detail (`rubricVersion: 2` on calls graded on the current rubric — see
+  [the score object](/backend/reading-calls#the-score-object)), is present only on a **Medicare Advantage** call that ended in a
   **sale**: a Final Expense real call never carries one, and an agency graded by its own compliance
   scorecard carries `compliancePercent` with no `complianceScorecard`.
 - `audioUrl` is a short-lived signed link to Athos's own archived copy of the dialer recording
