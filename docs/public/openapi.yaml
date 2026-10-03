@@ -963,10 +963,12 @@ components:
           type: string
           description: >-
             The drill to practice, e.g. `ma-full-sale` (Medicare Advantage — full enrollment),
-            `ma-t65`, `fe-closing`, `hi-crosssell`. Twenty-one drills across Medicare Advantage,
+            `ma-t65`, `fe-closing`, `hi-crosssell`. Twenty drills across Medicare Advantage,
             Medicare Supplement, Final Expense, under-65 health, Hospital Indemnity and Critical
-            Illness. The catalog is append-only and deliberately not an enum, so a newly added key
-            works without regenerating your client. See the Drills reference for the catalog.
+            Illness. Keys are never renamed; a key is withdrawn only if it misdescribes its
+            scenario, and a withdrawn key returns `DRILL_NOT_FOUND`. Deliberately not an enum, so
+            a newly added key works without regenerating your client. See the Drills reference
+            for the catalog.
           examples: ["ma-full-sale", "ma-t65", "fe-closing", "hi-crosssell"]
         filters:
           type: object

@@ -6,8 +6,9 @@
 /**
  * The drills Athos can run today.
  *
- * The catalog is **append-only**: a key is added when a new drill goes live and
- * is never renamed or removed, so a key you ship today keeps working.
+ * A key is added when a new drill goes live and is never renamed. A key is
+ * withdrawn only if it turns out to misdescribe its scenario; a withdrawn key is
+ * then rejected with `DRILL_NOT_FOUND`.
  *
  * This type is **opt-in**. `AthosRoleplayCreateOptions.drillKey` is deliberately
  * `string`, so a drill newly enabled on the Athos side works without upgrading
@@ -21,7 +22,6 @@ export type AthosDrillKey =
   | "ma-t65"
   | "ma-objection-handling"
   | "ma-needs-analysis"
-  | "ma-plan-presentation"
   | "ma-sep-hunting"
   | "ma-hhc"
   | "ma-hhc-downsell"
@@ -54,7 +54,6 @@ export const ATHOS_DRILL_KEYS: readonly AthosDrillKey[] = Object.freeze([
   "ma-t65",
   "ma-objection-handling",
   "ma-needs-analysis",
-  "ma-plan-presentation",
   "ma-sep-hunting",
   "ma-hhc",
   "ma-hhc-downsell",

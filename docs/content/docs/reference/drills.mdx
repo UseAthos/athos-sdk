@@ -19,7 +19,6 @@ Expense, `u65` under-65 private health, `hi` Hospital Indemnity, `ci` Critical I
 | `ma-t65` | **Turning 65.** Enroll a beneficiary going onto Medicare for the first time — they have never had a plan and will ask the rep to explain everything. Same enrollment ground and compliance scoring as `ma-full-sale`. |
 | `ma-objection-handling` | **Objection handling.** Handle live Medicare Advantage objections from a prospect. |
 | `ma-needs-analysis` | **Needs analysis.** Conduct a full needs analysis with a Medicare Advantage prospect. |
-| `ma-plan-presentation` | **Plan presentation.** Present a plan to a Medicare Advantage prospect. |
 | `ma-sep-hunting` | **SEP hunting.** Identify a valid Special Enrollment Period with a Medicare prospect. |
 | `ma-hhc` | **Home Health Care — full sale.** The whole call: take a vague inbound enquiry, uncover the need, and enroll the beneficiary in home health care. |
 | `ma-hhc-downsell` | **Home Health Care — downsell.** Pivot to home health care when there is no Medicare Advantage sale to be made. *Starts mid-call.* |
@@ -63,8 +62,8 @@ Expense, `u65` under-65 private health, `hi` Hospital Indemnity, `ci` Critical I
 | `ci-crosssell` | **Cross-sell.** Introduce critical illness coverage while walking a client through their new Medicare Advantage plan. |
 
 <Callout type="info">
-  The catalog is **append-only**: keys are never renamed or removed, and a newly added key works
-  without an SDK upgrade.
+  Keys are **never renamed**, and a newly added key works without an SDK upgrade. A key is withdrawn
+  only if it turns out to misdescribe its scenario; a withdrawn key returns `DRILL_NOT_FOUND`.
 </Callout>
 
 <Callout type="info">
