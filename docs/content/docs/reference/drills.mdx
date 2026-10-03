@@ -67,11 +67,16 @@ Expense, `u65` under-65 private health, `hi` Hospital Indemnity, `ci` Critical I
 </Callout>
 
 <Callout type="info">
-  **Four drills start mid-call.** `fe-closing`, `ma-hhc-downsell`, `ma-hhc-crosssell` and
-  `ma-hhc-upsell` open with the persona already at the moment the scenario is about — its first
-  line is a reaction to what has just happened, not a greeting. Tell the rep the setup before
-  they connect; the persona will not explain it.
+  **Brief the rep on mid-call drills.** A drill marked *Mid-call* in the Starts column opens with
+  the persona's first line reacting to what has just happened, not a greeting. Tell the rep the
+  setup before they connect; the persona will not explain it.
 </Callout>
+
+Steps that happen off the phone in a real sale, such as texted verification codes and e-sign
+links, are acted out in conversation. Every persona detail is fictional.
+
+The Ends column is where the scenario finishes, not what closes the session: the persona never
+hangs up, so your app ends the call. See [How a call ends](/sdk#how-a-call-ends).
 
 ### Typed keys in the SDK (opt-in)
 
@@ -95,6 +100,9 @@ Pass `difficulty` to set how challenging the persona is:
 | `Beginner` | More cooperative persona, simpler objections. |
 | `Advanced` | Standard difficulty. **Default** when `difficulty` is omitted. |
 | `Elite` | Tougher persona, harder objections. |
+
+The SDK defaults to `Advanced`, while the Athos web app defaults to `Beginner`. Pass `difficulty`
+explicitly if reps use both.
 
 ```ts
 AthosRoleplay.create({ token, drillKey: 'ma-full-sale', difficulty: 'Elite' });
