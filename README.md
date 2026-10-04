@@ -81,7 +81,7 @@ For compile-time checking and autocomplete, the available catalog is exported as
 import { ATHOS_DRILL_KEYS, type AthosDrillKey } from "@useathos/sdk";
 
 const drillKey: AthosDrillKey = "fe-closing"; // opt-in: typos fail to compile
-ATHOS_DRILL_KEYS; // ["ma-full-sale", "ma-t65", …, "ci-crosssell"] — 21 keys
+ATHOS_DRILL_KEYS; // ["ma-full-sale", "ma-t65", …, "ci-crosssell"] — 20 keys
 ```
 
 Twenty drills across six product lines, keyed `<line>-<practice>`:

@@ -164,7 +164,7 @@ paths:
                   value:
                     error:
                       code: "DRILL_NOT_FOUND"
-                      message: "Unknown drillKey"
+                      message: 'Unknown drill "ma-plan-presentation".'
                       requestId: "req_2f8c1e94-3b6a-4d20-9a7e-1c5f0b8e2d44"
         "401":
           $ref: "#/components/responses/Unauthorized"

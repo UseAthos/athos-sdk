@@ -31,17 +31,8 @@ npm install @useathos/sdk
   installed automatically. Both are ESM + CJS.
 - **Iframes:** if the call runs inside an `<iframe>`, the frame needs `allow="microphone"` or the
   browser denies the microphone (`MIC_PERMISSION_DENIED`).
-- **Content Security Policy:** the SDK calls `https://app.useathos.ai` (to redeem the token) and
-  then opens a WebSocket + WebRTC connection to the voice host returned by that call — currently
-  under `*.livekit.cloud`; do not hard-code a single hostname. If you set a CSP, allow:
-
-  ```text
-  connect-src https://app.useathos.ai https://*.livekit.cloud wss://*.livekit.cloud
-  ```
-
-  That covers the token redeem and the signalling (both `https://` and `wss://` to the voice host).
-  The audio itself travels over WebRTC, which CSP does not govern, and is played through an
-  `<audio>` element the SDK creates — no `media-src` entry is needed.
+- **Content Security Policy:** if your page sets a Content-Security-Policy that restricts
+  connections, contact Athos and we'll give you the hosts the voice connection needs to allow.
 
 ## The five-line integration
 
