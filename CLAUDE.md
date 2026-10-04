@@ -99,5 +99,6 @@ is CI-only and signed.
 ## Don't
 
 - Don't bundle `livekit-client`; don't name the voice transport in docs / public API / error strings.
+- The CSP host for the voice connection is intentionally not documented; resellers who need it get it from Athos directly.
 - Don't publish locally, and don't bump or tag by hand — merge to `main` → CI does both.
 - Don't commit secrets. Provenance comes from CI/OIDC, never a checked-in token.
