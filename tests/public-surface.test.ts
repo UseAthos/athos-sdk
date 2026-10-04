@@ -9,7 +9,7 @@ import { ATHOS_DRILL_KEYS, ATHOS_ERROR_CODES, ATHOS_EVENT_NAMES } from "../src/i
 describe("public surface", () => {
   it("exports the drill catalog as a non-empty runtime list", () => {
     expect(ATHOS_DRILL_KEYS.length).toBeGreaterThan(0);
-    // Append-only contract: keys are kebab-case, never renamed.
+    // Keys are kebab-case and never renamed.
     for (const key of ATHOS_DRILL_KEYS) {
       expect(key).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
     }
@@ -20,8 +20,9 @@ describe("public surface", () => {
     // while a picker built from this list offers a drill the server rejects with
     // DRILL_NOT_FOUND. The server half of this pair lives in the product repo's
     // lib/external/drill-key-map.ts and pins the same sorted literal in its own
-    // contract test; keep them in sync in one paired PR (D-03). Append-only: a
-    // key may be added here (and to this assertion), never removed.
+    // contract test; keep them in sync in one paired PR (D-03). Keys are never
+    // renamed; a key is withdrawn (removed here and on the server) only when it
+    // misdescribes its scenario, and the server then rejects it with DRILL_NOT_FOUND.
     expect([...ATHOS_DRILL_KEYS].sort()).toEqual([
       "ci-crosssell",
       "ci-downsell",
@@ -39,7 +40,6 @@ describe("public surface", () => {
       "ma-hhc-upsell",
       "ma-needs-analysis",
       "ma-objection-handling",
-      "ma-plan-presentation",
       "ma-sep-hunting",
       "ma-t65",
       "ms-full-sale",
