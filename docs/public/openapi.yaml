@@ -1183,35 +1183,54 @@ components:
           type: object
           additionalProperties: true
           description: >
-            The **default** Medicare compliance rubric's section-by-section review of the call: the
-            graded items themselves, each with its own per-item detail, and **no total**. Read
-            `compliancePercent` for the call's compliance number. **Optional** — the conditions that
-            follow describe that rubric's detail: on practice calls present only on the two Medicare
+            The **default** Medicare compliance rubric's question-by-question review of the call,
+            and **no total**: read `compliancePercent` for the call's compliance number. Calls graded
+            on the current rubric carry `rubricVersion: 2` and `categories`: each category has a
+            `key`, `label`, `percent` (0–100, or `null` when no question in it applied), `earned`,
+            `possible` and `questions`. Each question has a `key`, `number`, `label`, `points`,
+            `yesNo` (`yes`, `partial`, `no` or `n/a`), `score` (points earned: full for yes, half
+            for partial), `evidence` and `explanation`. `n/a` means the question did not apply and
+            it leaves `possible`. Older calls carry the previous section map, without
+            `rubricVersion`. **Optional** — on practice calls present only on the two Medicare
             Advantage enrollment drills (`ma-full-sale`, `ma-t65`) when the call ran at least five
             minutes; on a `real_call` present when the call was assessed against that rubric. The
             key is absent, not null, when there is none — including for an agency graded by its
             **own** compliance scorecard, whose calls carry `compliancePercent` with no
-            `complianceScorecard`, because this blob is the default rubric's detail and that rubric
-            did not run. Section contents are graded content and may gain items over time.
+            `complianceScorecard`. Category and question keys are stable; labels may change.
       example:
         overallScore: 82
         summary: "Prospect asked about Medicare options; the agent built rapport but rushed the close."
         feedback: "Lead with a clear greeting and one discovery question; slow down before presenting the plan."
         compliancePercent: 85
         complianceScorecard:
-          requiredCallOpening:
-            statedNameAndAgency:
-              yesNo: "yes"
-              score: 5
-              explanation: "The agent gave their name and the agency in the first ten seconds."
-            statedCallIsRecorded:
-              yesNo: "yes"
-              score: 3
-              explanation: "The agent said the call was recorded before asking any questions."
-          scopeOfAppointment:
-            confirmedProductsToDiscuss:
-              yesNo: "no"
-              explanation: "The agent moved into the plan comparison without confirming the scope on file."
+          rubricVersion: 2
+          categories:
+            - key: callOpening
+              label: Call Opening
+              percent: 75
+              earned: 6
+              possible: 8
+              questions:
+                - key: requiredCallOpening
+                  number: 1
+                  label: Required call opening
+                  points: 4
+                  conditional: false
+                  binary: false
+                  yesNo: "partial"
+                  score: 2
+                  evidence: "Hi, this is Dana with Sunrise Benefits, and this call is recorded."
+                  explanation: "The agent gave name, agency and the recording notice but not their licensed-agent status."
+                - key: memberIdentifiedDecisionMaker
+                  number: 2
+                  label: Member identified & decision-maker confirmed
+                  points: 4
+                  conditional: false
+                  binary: false
+                  yesNo: "yes"
+                  score: 4
+                  evidence: "And you make your own healthcare decisions?"
+                  explanation: "The agent confirmed the beneficiary and that she decides for herself."
 
     ListCallsResponse:
       type: object

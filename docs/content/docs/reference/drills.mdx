@@ -15,7 +15,7 @@ Expense, `u65` under-65 private health, `hi` Hospital Indemnity, `ci` Critical I
 
 | `drillKey` | Scenario |
 | --- | --- |
-| `ma-full-sale` | **Full enrollment.** A complete Medicare Advantage enrollment call, intro to close. Scored for skill and for CMS compliance — see [`complianceScorecard`](/backend/reading-calls#the-score-object). |
+| `ma-full-sale` | **Full enrollment.** A complete Medicare Advantage enrollment call, intro to close. Scored for skill and for compliance on the default Medicare rubric (yes / partial / no per question, by category) — see [`complianceScorecard`](/backend/reading-calls#the-score-object). |
 | `ma-t65` | **Turning 65.** Enroll a beneficiary going onto Medicare for the first time — they have never had a plan and will ask the rep to explain everything. Same enrollment ground and compliance scoring as `ma-full-sale`. |
 | `ma-objection-handling` | **Objection handling.** Handle live Medicare Advantage objections from a prospect. |
 | `ma-needs-analysis` | **Needs analysis.** Conduct a full needs analysis with a Medicare Advantage prospect. |
