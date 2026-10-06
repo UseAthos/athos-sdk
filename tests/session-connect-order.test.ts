@@ -17,12 +17,12 @@ const { calls, redeemSession, transportConnect, transportDisconnect } = vi.hoist
         callId: "call_1",
         connectionUrl: "wss://example.invalid",
         connectionTicket: "ticket",
-        persona: { name: "Ruth" },
+        persona: { name: "Ruth", details: null },
       };
     }),
     transportConnect: vi.fn(async (_p: unknown, cb: any) => {
       calls.push("transport.connect");
-      cb.onReady({ persona: { name: "Ruth" } });
+      cb.onReady({ persona: { name: "Ruth", details: null } });
     }),
   };
 });
@@ -236,7 +236,7 @@ describe("cancelling during the microphone prompt", () => {
         callId: "call_1",
         connectionUrl: "wss://example.invalid",
         connectionTicket: "ticket",
-        persona: { name: "Ruth" },
+        persona: { name: "Ruth", details: null },
       };
     });
 
@@ -267,7 +267,7 @@ describe("cancelling during the microphone prompt", () => {
       calls.push("transport.connect");
       joinStarted();
       await held;
-      cb.onReady({ persona: { name: "Ruth" } });
+      cb.onReady({ persona: { name: "Ruth", details: null } });
     });
 
     const session = AthosRoleplay.create({ token: "t", drillKey: "ma-full-sale" });
@@ -413,7 +413,7 @@ describe("disconnect() when there is nothing in flight to cancel", () => {
 
     // The transport keeps talking while it tears down. None of this belongs in
     // a cancelled call's UI — except the terminal event.
-    cbs.onReady({ persona: { name: "Ruth" } });
+    cbs.onReady({ persona: { name: "Ruth", details: null } });
     cbs.onPersonaSpeaking({ speaking: true });
     cbs.onUserSpeaking({ speaking: true });
     cbs.onReconnecting();

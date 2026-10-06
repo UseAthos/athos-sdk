@@ -108,7 +108,7 @@ transcript is delivered post-call via the Athos REST API
 | Event | Payload | Fires when |
 | --- | --- | --- |
 | `connecting` | — | `connect()` was called; redeeming the token / joining. |
-| `ready` | `{ persona: { name } }` | The persona is ready to speak. |
+| `ready` | `{ persona: { name, details } }` | The persona is ready to speak. `details` is the persona's beneficiary record (date of birth, MBI, address, Medicaid level, current plan) on the Medicare Advantage, Hospital Indemnity and Critical Illness drills except `ma-sep-hunting`, `null` elsewhere — see [Events](https://docs.useathos.ai/sdk/events#the-persona). |
 | `personaSpeaking` | `{ speaking }` | The persona started/stopped speaking. |
 | `userSpeaking` | `{ speaking }` | The local rep started/stopped speaking. |
 | `reconnecting` | — | A transient network drop is being recovered automatically. |

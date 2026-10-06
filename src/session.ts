@@ -95,7 +95,7 @@ class AthosRoleplaySessionImpl implements AthosRoleplaySession {
           connectionUrl: result.connectionUrl,
           connectionTicket: result.connectionTicket,
           callId: result.callId,
-          personaName: result.persona.name,
+          persona: result.persona,
         },
         {
           // The transport raises `ready` from inside connect(), before its own

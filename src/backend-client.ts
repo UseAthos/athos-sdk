@@ -1,5 +1,5 @@
 import { AthosRoleplayError } from "./errors";
-import type { AthosErrorCode } from "./types";
+import type { AthosErrorCode, AthosPersona } from "./types";
 
 // Default to production. The example harness / tests pass `apiBase` to point at
 // localhost. The reseller never sees a transport URL — only this Athos REST base.
@@ -21,7 +21,7 @@ export interface RedeemSessionResult {
   connectionUrl: string;
   sessionId: string;
   callId: string;
-  persona: { name: string };
+  persona: AthosPersona;
 }
 
 /** Redeem a JIT JWT for a connection ticket via POST /api/external/v1/roleplay/session. */

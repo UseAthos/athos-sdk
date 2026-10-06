@@ -1,4 +1,4 @@
-import type { AthosEventMap, MicrophoneInfo } from "../types";
+import type { AthosEventMap, AthosPersona, MicrophoneInfo } from "../types";
 
 // The transport abstraction seam. This is what keeps the voice vendor isolated:
 // the session depends only on this interface, and only livekit-transport.ts
@@ -11,8 +11,8 @@ export interface ConnectParams {
   connectionTicket: string;
   /** Stable public call id, echoed back on `ended`. */
   callId: string;
-  /** Persona display name, surfaced on `ready`. */
-  personaName: string;
+  /** The persona from the redeem response, surfaced on `ready`. */
+  persona: AthosPersona;
 }
 
 /** Callbacks the transport raises back to the session (session owns `connecting`). */

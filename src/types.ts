@@ -88,9 +88,9 @@ export interface AthosRoleplayCreateOptions {
    */
   drillKey: string;
   /**
-   * Best-effort persona filters: honored when a matching persona exists,
-   * otherwise dropped so an unfiltered persona is served — a filter never fails
-   * a call. Only a drill with no available persona at all fails, as
+   * Best-effort persona filters: `state` is honored when a matching persona
+   * exists, otherwise dropped so an unfiltered persona is served — a filter
+   * never fails a call. `category` is reserved and not applied yet. Only a drill with no available persona at all fails, as
    * `SERVICE_UNAVAILABLE`; that is transient, but the attempt consumes the
    * session token, so recover by minting a new token rather than retrying the
    * same one.
@@ -108,6 +108,53 @@ export interface AthosRoleplayCreateOptions {
 }
 
 /**
+ * The persona the rep is talking to, delivered on `ready`. All of it is
+ * fictitious training data.
+ */
+export interface AthosPersona {
+  /** The name the persona gives on the call. */
+  name: string;
+  /**
+   * The persona's beneficiary record — what a rep would verify or look up during
+   * the call (e.g. to render your own eligibility-lookup screen). Present for the
+   * Medicare Advantage, Hospital Indemnity and Critical Illness drills except
+   * `ma-sep-hunting`; `null` for every other drill.
+   */
+  details: AthosPersonaDetails | null;
+}
+
+/**
+ * A persona's beneficiary record. Any field is `null` when the persona has no
+ * value for it.
+ */
+export interface AthosPersonaDetails {
+  gender: "male" | "female" | null;
+  /** ISO date, `YYYY-MM-DD`. */
+  dateOfBirth: string | null;
+  /** The Medicare Beneficiary Identifier the persona gives when asked. */
+  mbi: string | null;
+  address: {
+    street: string | null;
+    city: string | null;
+    state: string | null;
+    zipCode: string | null;
+    county: string | null;
+  };
+  /** `MAPD`, `MA Only`, `CSNP` or `DSNP`. */
+  category: string | null;
+  /** `QMB`, `QMB+`, `SLMB`, `SLMB+`, `QI` or `FBDE`; `null` when the persona has no Medicaid. */
+  medicaidLevel: string | null;
+  /** The Medicare Advantage plan the persona is enrolled in today; `null` when none (e.g. `ma-t65`). */
+  currentPlan: {
+    name: string;
+    contractId: string | null;
+    planId: string | null;
+    /** CMS plan type, e.g. `01 - HMO (D-SNP)`. */
+    planType: string | null;
+  } | null;
+}
+
+/**
  * The full event union. There is deliberately no live `transcript` event — the
  * diarized transcript is delivered after the call through the REST API
  * (`GET /v1/calls/:callId`), not streamed during it.
@@ -116,7 +163,7 @@ export interface AthosEventMap {
   /** connect() was called; the token is being redeemed / the session joined. */
   connecting: void;
   /** The persona is ready to speak. */
-  ready: { persona: { name: string } };
+  ready: { persona: AthosPersona };
   /** The persona started (`true`) or stopped (`false`) speaking. */
   personaSpeaking: { speaking: boolean };
   /** The local rep started (`true`) or stopped (`false`) speaking. */
