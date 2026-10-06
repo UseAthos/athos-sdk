@@ -12,6 +12,8 @@ export type {
   AthosDrillKey,
   AthosEventMap,
   AthosEventName,
+  AthosPersona,
+  AthosPersonaDetails,
   AthosErrorCode,
   MicrophoneInfo,
 } from "./types";

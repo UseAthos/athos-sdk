@@ -1009,10 +1009,60 @@ components:
           description: Stable public call id (`athos_call_…`) for later lookups, webhooks, and `ended`.
         persona:
           type: object
-          required: [name]
+          description: The persona the rep is talking to. All of it is fictitious training data.
+          required: [name, details]
           properties:
             name:
               type: string
+            details:
+              description: >-
+                The persona's details. Present for the Medicare Advantage, Hospital Indemnity
+                and Critical Illness drills except `ma-sep-hunting`; `null` for every other drill.
+              oneOf:
+                - $ref: "#/components/schemas/PersonaDetails"
+                - type: "null"
+
+    PersonaDetails:
+      type: object
+      description: The persona's details. Any field is `null` when the persona has no value for it.
+      required: [gender, dateOfBirth, mbi, address, category, medicaidLevel, currentPlan]
+      properties:
+        gender:
+          type: [string, "null"]
+          enum: [male, female, null]
+        dateOfBirth:
+          type: [string, "null"]
+          format: date
+        mbi:
+          type: [string, "null"]
+          description: The Medicare Beneficiary Identifier the persona gives when asked.
+          examples: ["1EG4-TE5-MK72"]
+        address:
+          type: object
+          required: [street, city, state, zipCode, county]
+          properties:
+            street: { type: [string, "null"] }
+            city: { type: [string, "null"] }
+            state: { type: [string, "null"] }
+            zipCode: { type: [string, "null"] }
+            county: { type: [string, "null"] }
+        category:
+          type: [string, "null"]
+          description: "`MAPD`, `MA Only`, `CSNP` or `DSNP`."
+        medicaidLevel:
+          type: [string, "null"]
+          description: "`QMB`, `QMB+`, `SLMB`, `SLMB+`, `QI` or `FBDE`; `null` when the persona has no Medicaid."
+        currentPlan:
+          description: The Medicare Advantage plan the persona is enrolled in today; `null` when none (always on `ma-t65`).
+          oneOf:
+            - type: object
+              required: [name, contractId, planId, planType]
+              properties:
+                name: { type: string }
+                contractId: { type: [string, "null"], examples: ["H3561"] }
+                planId: { type: [string, "null"], examples: ["009"] }
+                planType: { type: [string, "null"], description: "CMS plan type, e.g. `01 - HMO (D-SNP)`." }
+            - type: "null"
 
     SlimCall:
       type: object

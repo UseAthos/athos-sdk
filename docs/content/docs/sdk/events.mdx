@@ -17,7 +17,7 @@ off();
 | Event | Payload | Fires when |
 | --- | --- | --- |
 | `connecting` | — | `connect()` was called; the token is being redeemed and the call joined. |
-| `ready` | `{ persona: { name: string } }` | The persona is connected and ready to speak. |
+| `ready` | `{ persona: AthosPersona }` | The persona is connected and ready to speak. See [The persona](#the-persona). |
 | `personaSpeaking` | `{ speaking: boolean }` | The AI persona started (`true`) or stopped (`false`) speaking. |
 | `userSpeaking` | `{ speaking: boolean }` | The local rep started (`true`) or stopped (`false`) speaking. |
 | `reconnecting` | — | A transient network drop is being recovered automatically. |
@@ -29,6 +29,31 @@ off();
   There is **no live transcript event**. The transcript is delivered post-call via
   [`GET /v1/calls/:id`](/backend/reading-calls), not streamed during the call.
 </Callout>
+
+## The persona
+
+`ready` carries the persona the rep is talking to: its `name`, and — for the Medicare Advantage,
+Hospital Indemnity and Critical Illness drills except `ma-sep-hunting` — the persona's details in
+`details` (`null` for every other drill). All of it is fictitious training data.
+
+```ts
+session.on('ready', ({ persona }) => {
+  // persona.details:
+  // {
+  //   gender: 'female',
+  //   dateOfBirth: '1950-12-29',
+  //   mbi: '1EG4-TE5-MK72',            // the MBI the persona gives when asked
+  //   address: { street: '4415 Cherry Blvd', city: 'Auburn', state: 'CA', zipCode: '95603', county: 'PLACER' },
+  //   category: 'DSNP',                // MAPD | MA Only | CSNP | DSNP
+  //   medicaidLevel: 'QI',             // null when the persona has no Medicaid
+  //   currentPlan: { name: 'Wellcare Dual Liberty (HMO D-SNP)', contractId: 'H3561', planId: '009', planType: '01 - HMO (D-SNP)' },
+  // }
+});
+```
+
+Any field is `null` when the persona has no value for it. `currentPlan` is `null` when the persona
+has no Medicare Advantage plan today — always the case on `ma-t65`, where the rep is enrolling
+someone new to Medicare.
 
 ## When `ended` fires
 

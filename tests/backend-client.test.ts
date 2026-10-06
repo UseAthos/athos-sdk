@@ -16,7 +16,7 @@ const OK_BODY = {
   connectionUrl: "wss://opaque",
   sessionId: "sess_1",
   callId: "call_1",
-  persona: { name: "Margaret" },
+  persona: { name: "Margaret", details: null },
 };
 
 describe("redeemSession", () => {

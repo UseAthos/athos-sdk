@@ -92,7 +92,7 @@ const PARAMS = {
   connectionUrl: "opaque-url",
   connectionTicket: "opaque-ticket",
   callId: "call_1",
-  personaName: "Margaret",
+  persona: { name: "Margaret", details: null },
 };
 const lastRoom = () => state.rooms.at(-1)!;
 
@@ -110,7 +110,7 @@ describe("LiveKitTransport", () => {
     const { events, cb } = makeCallbacks();
     await t.connect(PARAMS, cb);
     expect(lastRoom().localParticipant.micEnableCalls).toContain(true);
-    expect(events).toContainEqual(["ready", { persona: { name: "Margaret" } }]);
+    expect(events).toContainEqual(["ready", { persona: { name: "Margaret", details: null } }]);
   });
 
   it("emits reconnecting then reconnected on a transient drop (D-52)", async () => {

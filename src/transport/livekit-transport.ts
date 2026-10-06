@@ -116,7 +116,7 @@ export class LiveKitTransport implements Transport {
       throw translateTransportError(toFailure(e));
     }
     this.activeMicId = room.getActiveDevice("audioinput");
-    cb.onReady({ persona: { name: params.personaName } });
+    cb.onReady({ persona: params.persona });
   }
 
   private emitSpeaking(

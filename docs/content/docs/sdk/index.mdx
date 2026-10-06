@@ -74,7 +74,7 @@ straight away, so call it on the client only (see [Browser support](/sdk/browser
     },
     filters: {
       type: '{ state?: string; category?: string }',
-      description: 'Best-effort persona filters. Falls back internally if nothing matches.',
+      description: 'Best-effort persona filters. `state` falls back to any state if nothing matches; `category` is reserved and not applied yet.',
     },
     difficulty: {
       type: '"Beginner" | "Advanced" | "Elite"',
