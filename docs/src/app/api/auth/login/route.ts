@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
+import { passwordFingerprint } from '@/lib/auth/fingerprint';
 import { resolveGate } from '@/lib/auth/gate';
-import { verifyPassword } from '@/lib/auth/password';
+import { findOrgForPassword } from '@/lib/auth/password';
 import { SESSION_COOKIE_NAME, SESSION_MAX_AGE_S, signSessionToken } from '@/lib/auth/session';
 
 export async function POST(req: Request) {
   const gate = resolveGate();
   if (gate.mode !== 'on') {
+    if (gate.mode === 'misconfigured') console.error(`[docs-auth] gate misconfigured: ${gate.reason}`);
     return NextResponse.json({ error: 'Password gate is not configured' }, { status: 503 });
   }
 
@@ -22,12 +24,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Password is required' }, { status: 400 });
   }
 
-  if (!verifyPassword(password, gate.password, gate.secret)) {
+  const org = findOrgForPassword(password, gate.orgs, gate.secret);
+  if (!org) {
     return NextResponse.json({ error: 'Incorrect password' }, { status: 401 });
   }
 
+  console.info(`[docs-auth] sign-in org=${org}`);
+
+  const token = await signSessionToken(gate.secret, {
+    org,
+    fp: await passwordFingerprint(gate.orgs[org], gate.secret),
+  });
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE_NAME, await signSessionToken(gate.secret), {
+  res.cookies.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
