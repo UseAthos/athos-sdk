@@ -115,8 +115,7 @@ export interface AthosPersona {
   /** The name the persona gives on the call. */
   name: string;
   /**
-   * The persona's beneficiary record — what a rep would verify or look up during
-   * the call (e.g. to render your own eligibility-lookup screen). Present for the
+   * The persona's details. Present for the
    * Medicare Advantage, Hospital Indemnity and Critical Illness drills except
    * `ma-sep-hunting`; `null` for every other drill.
    */
@@ -124,7 +123,7 @@ export interface AthosPersona {
 }
 
 /**
- * A persona's beneficiary record. Any field is `null` when the persona has no
+ * The persona's details. Any field is `null` when the persona has no
  * value for it.
  */
 export interface AthosPersonaDetails {

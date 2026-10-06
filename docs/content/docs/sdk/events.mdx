@@ -33,9 +33,8 @@ off();
 ## The persona
 
 `ready` carries the persona the rep is talking to: its `name`, and — for the Medicare Advantage,
-Hospital Indemnity and Critical Illness drills except `ma-sep-hunting` — its beneficiary record in
-`details` (`null` for every other drill). Use it to render your own in-call reference or
-eligibility-lookup screen. All of it is fictitious training data.
+Hospital Indemnity and Critical Illness drills except `ma-sep-hunting` — the persona's details in
+`details` (`null` for every other drill). All of it is fictitious training data.
 
 ```ts
 session.on('ready', ({ persona }) => {

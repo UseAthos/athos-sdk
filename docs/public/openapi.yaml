@@ -1016,8 +1016,7 @@ components:
               type: string
             details:
               description: >-
-                The persona's beneficiary record, for rendering your own in-call reference or
-                eligibility-lookup screen. Present for the Medicare Advantage, Hospital Indemnity
+                The persona's details. Present for the Medicare Advantage, Hospital Indemnity
                 and Critical Illness drills except `ma-sep-hunting`; `null` for every other drill.
               oneOf:
                 - $ref: "#/components/schemas/PersonaDetails"
@@ -1025,7 +1024,7 @@ components:
 
     PersonaDetails:
       type: object
-      description: A persona's beneficiary record. Any field is `null` when the persona has no value for it.
+      description: The persona's details. Any field is `null` when the persona has no value for it.
       required: [gender, dateOfBirth, mbi, address, category, medicaidLevel, currentPlan]
       properties:
         gender:
