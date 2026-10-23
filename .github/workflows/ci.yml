@@ -12,7 +12,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # An exact patch, not `22`: setup-node takes the runner's cached 22.x, which can
+          # predate a Node security release.
+          node-version: 22.23.4
           cache: npm
       - run: npm ci
       - run: npm run build
